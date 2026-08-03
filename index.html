@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mathematics Past Paper WebApp</title>
+    
+    <!-- Tailwind CSS for modern, clean UI layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- MathJax for rendering LaTeX expressions -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+    
+    <!-- html2pdf.js for generating the PDF report -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        /* Transparent interactive canvas layer over figure/workspaces */
+        .drawing-canvas {
+            touch-action: none;
+            cursor: crosshair;
+        }
+        /* Style adjustments for printing or capturing report */
+        .report-page {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col tex2jax_process">
+
+    <!-- Header Section -->
+    <header class="bg-slate-800 text-white shadow-md px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+        <div>
+            <h1 class="text-xl font-bold tracking-wide">HKDSE 2024 Paper 2</h1>
+        </div>
+        <div class="flex gap-6 text-sm font-semibold">
+            <div class="bg-slate-700 px-3 py-2 rounded shadow-inner">
+                Overall Time: <span id="overall-timer" class="text-yellow-400 font-mono">00:00:00</span>
+            </div>
+            <div class="bg-slate-700 px-3 py-2 rounded shadow-inner">
+                Question Time: <span id="question-timer" class="text-yellow-400 font-mono">00:00</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Navigation Matrix (Fixed to exactly two rows with horizontal scrolling) -->
+    <div class="bg-white border-b border-slate-200 p-4 shadow-sm overflow-x-auto scrollbar-thin">
+        <div id="matrix-container" class="grid gap-1 justify-center mx-auto" style="grid-template-columns: repeat(23, minmax(0, 1fr)); width: max-content; min-width: 1012px;">
+            <!-- Programmatically filled with 45 question buttons across exactly 2 rows -->
+        </div>
+    </div>
+
+    <!-- Main Content Workspace Grid -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- LEFT COLUMN: Question Details & Answer Board (6 Cols) -->
+        <section class="lg:col-span-6 flex flex-col gap-4">
+            <!-- Question Box -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <span class="inline-block bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-bold uppercase mb-3">Question <span id="current-q-num">1</span></span>
+                <div id="question-text" class="text-lg leading-relaxed mb-4 min-h-[80px]">
+                    <!-- Question text injected here -->
+                </div>
+            </div>
+
+            <!-- Answer Selection Area -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-600 uppercase tracking-wider mb-4">Choose Answer</h3>
+                    <div id="options-container" class="space-y-3">
+                        <!-- Options A to D will be rendered dynamically -->
+                    </div>
+                    
+                    <div class="border-t border-slate-100 my-4 pt-4">
+                        <!-- Unsure Pedagogical Flag -->
+                        <button id="opt-unsure" onclick="selectOption(4)" class="w-full min-h-[4rem] flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/30 transition text-left">
+                            <span class="flex items-center gap-3">
+                                <span class="w-8 h-8 rounded-full border border-slate-300 flex items-center justify-center font-bold text-slate-500 bg-white shadow-sm font-mono text-xs">?</span>
+                                <span class="text-slate-700 font-semibold text-sm">I am not sure</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Actions footer inside Card -->
+                <div class="flex items-center justify-between gap-4 border-t border-slate-100 pt-6 mt-6">
+                    <button id="btn-prev" onclick="navigateQuestion(-1)" class="px-5 py-2.5 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 transition">← Previous</button>
+                    <button id="btn-next" onclick="navigateQuestion(1)" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">Next Question →</button>
+                    <button id="btn-done" onclick="finishTest()" class="px-6 py-2.5 text-sm font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition hidden">Done</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- RIGHT COLUMN: Working Space & Solutions (6 Cols) -->
+        <section class="lg:col-span-6 flex flex-col gap-4">
+            <!-- Figure and Interactive Drawing Area -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-sm font-bold text-slate-600 flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        Workspace
+                    </span>
+                    
+                    <!-- Canvas Controls -->
+                    <div class="flex items-center gap-2">
+                        <!-- Colors -->
+                        <div class="flex items-center gap-1 border-r pr-2 border-slate-200 mr-1">
+                            <button onclick="setPenColor('#ef4444')" class="w-5 h-5 rounded-full bg-red-500 border border-transparent focus:ring-2 focus:ring-offset-2 focus:ring-slate-400" title="Red"></button>
+                            <button onclick="setPenColor('#000000')" class="w-5 h-5 rounded-full bg-black border border-transparent focus:ring-2 focus:ring-offset-2 focus:ring-slate-400" title="Black"></button>
+                            <button onclick="setPenColor('#3b82f6')" class="w-5 h-5 rounded-full bg-blue-500 border border-transparent focus:ring-2 focus:ring-offset-2 focus:ring-slate-400" title="Blue"></button>
+                            <button onclick="setPenColor('#10b981')" class="w-5 h-5 rounded-full bg-emerald-500 border border-transparent focus:ring-2 focus:ring-offset-2 focus:ring-slate-400" title="Green"></button>
+                        </div>
+                        <!-- Tools -->
+                        <button id="tool-pen" onclick="setTool('pen')" class="px-2.5 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-700 border border-blue-300 transition" title="Hold Briefly for Straight Lines">Pen 🖋️</button>
+                        <button id="tool-eraser" onclick="setTool('eraser')" class="px-2.5 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-700 border border-slate-300 transition">Eraser 🧽</button>
+                        <button onclick="clearCanvas()" class="px-2.5 py-1 text-xs font-semibold rounded bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition">Clear All 🗑️</button>
+                    </div>
+                </div>
+
+                <!-- Canvas Wrapper Layer -->
+                <div id="canvas-wrapper" class="relative bg-slate-50 border border-dashed border-slate-200 rounded-lg flex items-center justify-center overflow-hidden min-h-[340px]">
+                    <!-- Math SVG Figures or Dynamic Text Container Will Mount Here -->
+                    <div id="figure-mount" class="w-full flex items-center justify-center p-4"></div>
+                    
+                    <!-- Overlay Draw Canvas -->
+                    <canvas id="drawing-canvas" class="absolute top-0 left-0 w-full h-full drawing-canvas"></canvas>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-2 text-center">💡 Tip: While using the Pen, hold briefly to turn your stroke into a perfect straight line!</p>
+            </div>
+
+            <!-- Dynamic Answer Description & Solution Card (visible during review mode) -->
+            <div id="solution-container" class="bg-emerald-50 border border-emerald-200 p-6 rounded-xl shadow-sm hidden">
+                <h4 class="font-bold text-emerald-800 text-base mb-2">Detailed Solution Explained</h4>
+                <div id="solution-text" class="text-emerald-900 text-sm leading-relaxed">
+                    <!-- Solution Markdown injected here -->
+                </div>
+            </div>
+            
+            <!-- Finish Checking / View Performance Button -->
+            <button id="btn-show-report" onclick="renderReportPage()" class="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-md transition transform hover:scale-[1.01] hidden text-center">
+                📊 Generate the Report
+            </button>
+        </section>
+    </main>
+
+    <!-- Report & Performance Dashboard Modal -->
+    <div id="report-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 overflow-y-auto hidden flex items-start justify-center p-4 md:p-8">
+        <div id="report-document" class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-8 my-8 relative report-page">
+            <div class="flex justify-between items-start border-b pb-6 mb-6">
+                <div>
+                    <h2 class="text-3xl font-extrabold text-slate-800">HKDSE 2024 Paper 2</h2>
+                    <p class="text-slate-500 text-sm mt-1">Generated on: <span id="report-date"></span></p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="downloadPDF()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow">
+                        📥 Download PDF Report
+                    </button>
+                    <button onclick="closeReport()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg text-sm">
+                        Close
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary Scores -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-emerald-50 border border-emerald-100 p-5 rounded-xl text-center">
+                    <span class="text-sm font-semibold text-emerald-600 uppercase tracking-wide">Correct</span>
+                    <h3 class="text-2xl font-extrabold text-emerald-700 mt-1" id="rep-correct">0 (0%)</h3>
+                </div>
+                <div class="bg-rose-50 border border-rose-100 p-5 rounded-xl text-center">
+                    <span class="text-sm font-semibold text-rose-600 uppercase tracking-wide">Wrong</span>
+                    <h3 class="text-2xl font-extrabold text-rose-700 mt-1" id="rep-wrong">0 (0%)</h3>
+                </div>
+                <div class="bg-amber-50 border border-amber-100 p-5 rounded-xl text-center">
+                    <span class="text-sm font-semibold text-amber-600 uppercase tracking-wide">Unsure</span>
+                    <h3 class="text-2xl font-extrabold text-amber-700 mt-1" id="rep-unsure">0 (0%)</h3>
+                </div>
+                <div class="bg-slate-100 border border-slate-200 p-5 rounded-xl text-center">
+                    <span class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Total Time Used</span>
+                    <h3 class="text-2xl font-extrabold text-slate-800 mt-1" id="rep-total-time">00:00:00</h3>
+                </div>
+            </div>
+
+            <!-- Detailed Question Log Table -->
+            <div class="mb-6">
+                <h3 class="text-lg font-bold text-slate-800 mb-3">Diagnosis</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase">
+                                <th class="p-3">Question</th>
+                                <th class="p-3">My option</th>
+                                <th class="p-3">Correct option</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3 text-right">Time Used</th>
+                            </tr>
+                        </thead>
+                        <tbody id="report-table-body" class="text-sm text-slate-700 divide-y divide-slate-100">
+                            <!-- Injected programmatically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTROLLER & LOGIC SCRIPT -->
+    <script>
+        // Injecting the complete 45-question dataset
+        const questionsData = [
+            { id: 1, text: "$(x+3y)^2-(x-3y)^2=$", hasFigure: false, options: ["$2x^2$", "$6xy$", "$12xy$", "$2x^2+18y^2$"], answer: 2, solution: "$$ \\begin{aligned} (x+3y)^2-(x-3y)^2 &= (x^2+6xy+9y^2)-(x^2-6xy+9y^2)\\\\ &= 12xy \\end{aligned} $$ <br> Hence, the answer is C." },
+            { id: 2, text: "$\\dfrac{(2\\alpha)^3}{(4\\alpha^{-5})^{-1}}=$", hasFigure: false, options: ["$2\\alpha^8$", "$32\\alpha^8$", "$\\dfrac{2}{\\alpha^2}$", "$\\dfrac{32}{\\alpha^2}$"], answer: 3, solution: "$$ \\begin{aligned} \\dfrac{(2\\alpha)^3}{(4\\alpha^{-5})^{-1}} &= (2\\alpha)^3(4\\alpha^{-5})\\\\ &= 8\\alpha^3 \\cdot 4\\alpha^{-5}\\\\ &= 32\\alpha^{-2}\\\\ &= \\dfrac{32}{\\alpha^2} \\end{aligned} $$ <br> Hence, the answer is D." },
+            { id: 3, text: "If $k=\\dfrac{5}{2m}+n$, then $m=$", hasFigure: false, options: ["$\\dfrac{5}{2(k-n)}$", "$\\dfrac{5}{2(n-k)}$", "$\\dfrac{2(k-n)}{5}$", "$\\dfrac{2(n-k)}{5}$"], answer: 0, solution: "$$ \\begin{aligned} k &= \\dfrac{5}{2m}+n\\\\ k-n &= \\dfrac{5}{2m}\\\\ 2m(k-n) &= 5\\\\ m &= \\dfrac{5}{2(k-n)} \\end{aligned} $$ <br> Hence, the answer is A." },
+            { id: 4, text: "$\\sqrt{333}=$", hasFigure: false, options: ["$18$ (correct to the nearest integer)", "$18.24$ (correct to 2 decimal places)", "$18.248$ (correct to 3 significant figures)", "$18.2482$ (correct to 4 decimal places)"], answer: 0, solution: "$$ \\begin{aligned} \\sqrt{333} \\approx 18.248287\\ldots \\end{aligned} $$ <br> Correct to the nearest integer, $\\sqrt{333}=18$. <br> Hence, the answer is A." },
+            { id: 5, text: "The price of 2 apples and 3 lemons is $\\$38$. If the price of 3 apples and 2 lemons is $\\$47$, then the price of 4 apples and 7 lemons is", hasFigure: false, options: ["$\\$78$", "$\\$80$", "$\\$82$", "$\\$84$"], answer: 1, solution: "Let the prices of an apple and a lemon be $\\$a$ and $\\$l$ respectively. <br> $$ \\begin{aligned} 2a+3l &= 38\\\\ 3a+2l &= 47 \\end{aligned} $$ <br> Subtracting, <br> $$ \\begin{aligned} a-l &= 9\\\\ a &= l+9 \\end{aligned} $$ <br> Substituting into $2a+3l=38$, <br> $$ \\begin{aligned} 2(l+9)+3l &= 38\\\\ 5l &= 20\\\\ l &= 4\\\\ a &= 13 \\end{aligned} $$ <br> Therefore, <br> $$ \\begin{aligned} 4a+7l &= 4(13)+7(4)\\\\ &= 80 \\end{aligned} $$ <br> Hence, the answer is B." },
+            { id: 6, text: "If $a$, $b$ and $c$ are non-zero constants such that $4x^2+2ax+3a=x(4x+b)+2c$, then $a:b:c=$", hasFigure: false, options: ["$2:4:3$", "$3:4:2$", "$4:6:3$", "$6:4:3$"], answer: 0, solution: "$$ \\begin{aligned} x(4x+b)+2c &= 4x^2+bx+2c \\end{aligned} $$ <br> Since <br> $$ \\begin{aligned} 4x^2+2ax+3a &= 4x^2+bx+2c \\end{aligned} $$ <br> comparing coefficients, <br> $$ \\begin{aligned} b &= 2a\\\\ 2c &= 3a \\end{aligned} $$ <br> Hence <br> $$ \\begin{aligned} c &= \\dfrac{3a}{2} \\end{aligned} $$ <br> Therefore, <br> $$ \\begin{aligned} a:b:c &= a:2a:\\dfrac{3a}{2}\\\\ &= 2:4:3 \\end{aligned} $$ <br> Hence, the answer is A." },
+            { id: 7, text: "Let $m$ be a constant. Solve the equation <br> $$ x^2-3x=(m-1)^2-3(m-1). $$", hasFigure: false, options: ["$x=m-1$ or $x=m-4$", "$x=m-1$ or $x=4-m$", "$x=1-m$ or $x=m-4$", "$x=1-m$ or $x=4-m$"], answer: 1, solution: "$$ \\begin{aligned} x^2-3x &= (m-1)^2-3(m-1)\\\\ x^2-3x-\\left[(m-1)^2-3(m-1)\\right] &= 0\\\\ \\left(x-(m-1)\\right)\\left(x+(m-1)-3\\right) &= 0 \\end{aligned} $$ <br> Therefore, <br> $$ \\begin{aligned} x-(m-1) &= 0 \\qquad \\text{or} \\qquad x+(m-1)-3=0\\\\ x &= m-1 \\qquad \\text{or} \\qquad x=4-m \\end{aligned} $$ <br> Hence, the answer is B." },
+            { id: 8, text: "Let $g(x)=(x+1)(x+a)$, where $a$ is a constant. If $g(1)=g(2)$, then $g(a)=$", hasFigure: false, options: ["$-4$", "$0$", "$12$", "$24$"], answer: 3, solution: "$$ \\begin{aligned} g(1) &= (1+1)(1+a)=2(a+1)\\\\ g(2) &= (2+1)(2+a)=3(a+2) \\end{aligned} $$ <br> Since $g(1)=g(2)$, <br> $$ \\begin{aligned} 2(a+1) &= 3(a+2)\\\\ 2a+2 &= 3a+6\\\\ a &= -4 \\end{aligned} $$ <br> Then <br> $$ \\begin{aligned} g(a) &= g(-4)\\\\ &= (-4+1)(-4-4)\\\\ &= 24 \\end{aligned} $$ <br> Hence, the answer is D." },
+            { id: 9, text: "Let $f(x)=x^3+kx^2+5x+10$, where $k$ is a constant. If $f(x)$ is divisible by $x+k$, find the remainder when $f(x)$ is divided by $x+1$.", hasFigure: false, options: ["$-2$", "$2$", "$6$", "$18$"], answer: 2, solution: "Since $f(x)$ is divisible by $x+k$, by the factor theorem, <br> $$ \\begin{aligned} f(-k) &= 0 \\end{aligned} $$ <br> So <br> $$ \\begin{aligned} (-k)^3+k(-k)^2+5(-k)+10 &= 0\\\\ -k^3+k^3-5k+10 &= 0\\\\ -5k+10 &= 0\\\\ k &= 2 \\end{aligned} $$ <br> The remainder when $f(x)$ is divided by $x+1$ is $f(-1)$. <br> $$ \\begin{aligned} f(-1) &= (-1)^3+2(-1)^2+5(-1)+10\\\\ &= -1+2-5+10\\\\ &= 6 \\end{aligned} $$ <br> Hence, the answer is C." },
+            { id: 10, text: "The solution of $\\dfrac{1-x}{2}\\geq 4$ or $7+5x\\leq -3$ is", hasFigure: false, options: ["$x\\leq -7$", "$x\\leq -2$", "$-7\\leq x\\leq -2$", "$x\\leq -7$ or $x\\geq -2$"], answer: 1, solution: "$$ \\begin{aligned} \\dfrac{1-x}{2} &\\geq 4\\\\ 1-x &\\geq 8\\\\ -x &\\geq 7\\\\ x &\\leq -7 \\end{aligned} $$ <br> $$ \\begin{aligned} 7+5x &\\leq -3\\\\ 5x &\\leq -10\\\\ x &\\leq -2 \\end{aligned} $$ <br> Therefore, we have: <br> $$ \\begin{aligned} x &\\leq -2 \\end{aligned} $$ <br> Hence, the answer is B." },
+            { id: 11, text: "In a school, $40\\%$ of the students are girls and $\\beta\\%$ of the girls are foreign students. It is given that $30\\%$ of the boys in the school are foreign students. In the school, the number of foreign students and the number of girls are equal. Find $\\beta$.", hasFigure: false, options: ["$20$", "$45$", "$55$", "$80$"], answer: 2, solution: "Let the total number of students be $T$. <br> $$ \\begin{aligned} \\text{Number of girls} &= 40\\%\\text{ of }T = \\dfrac{2T}{5}\\\\ \\text{Number of boys} &= 60\\%\\text{ of }T = \\dfrac{3T}{5} \\end{aligned} $$ <br> $$ \\begin{aligned} \\text{Number of foreign girls} &= \\beta\\%\\text{ of }\\dfrac{2T}{5}\\\\ \\text{Number of foreign girls} &= \\frac{\\beta T}{250} \\end{aligned} $$ <br> $$ \\begin{aligned} \\text{Number of foreign boys} &= 30\\%\\text{ of }\\dfrac{3T}{5}\\\\ \\text{Number of foreign boys} &= \\frac{9T}{50} \\end{aligned} $$ <br> Since the number of foreign students equals the number of girls, <br> $$ \\begin{aligned} \\dfrac{\\beta T}{250}+\\dfrac{9T}{50} &= \\dfrac{2T}{5}\\\\ \\dfrac{\\beta}{250}+\\dfrac{9}{50} &= \\dfrac{2}{5}\\\\ \\dfrac{\beta}{250} &= \\dfrac{11}{50}\\\\ \\beta &= 55 \\end{aligned} $$ <br> Hence, the answer is C." },
+            { id: 12, text: "A car travels at an average speed of $60\\text{ km/h}$ for 18 minutes and then the car travels at an average speed of $40\\text{ km/h}$ for 27 minutes. The average speed of the car for the whole journey is", hasFigure: false, options: ["$48\\text{ km/h}$", "$50\\text{ km/h}$", "$52\\text{ km/h}$", "$54\\text{ km/h}$"], answer: 0, solution: "Distance travelled in the first 18 minutes: <br> $$ \\begin{aligned} 60\\times \\dfrac{18}{60} = 18\\text{ km} \\end{aligned} $$ <br> Distance travelled in the next 27 minutes: <br> $$ \\begin{aligned} 40\\times \\dfrac{27}{60} = 18\\text{ km} \\end{aligned} $$ <br> So the total distance is <br> $$ \\begin{aligned} 18+18 = 36\\text{ km} \\end{aligned} $$ <br> Total time is <br> $$ \\begin{aligned} 18+27 = 45\\text{ minutes} = \\dfrac{3}{4}\\text{ h} \\end{aligned} $$ <br> Hence the average speed is <br> $$ \\begin{aligned} \\dfrac{36}{\\frac{3}{4}} = 48\\text{ km/h} \\end{aligned} $$ <br> Hence, the answer is A." },
+            { id: 13, text: "It is given that $z$ varies directly as the square of $x$ and inversely as $y$. If $x$ is increased by $20\\%$ and $y$ is decreased by $20\\%$, then $z$", hasFigure: false, options: ["is increased by $20\\%$", "is decreased by $20\\%$", "is increased by $80\\%$", "is decreased by $80\\%$"], answer: 2, solution: "Since $z$ varies directly as the square of $x$ and inversely as $y$, <br> $$ \\begin{aligned} z=\\dfrac{kx^2}{y} \\end{aligned} $$ <br> If $x$ is increased by $20\\%$, then <br> $$ \\begin{aligned} x \\to 1.2x \\end{aligned} $$ <br> If $y$ is decreased by $20\\%$, then <br> $$ \\begin{aligned} y \\to 0.8y \\end{aligned} $$ <br> So the new value of $z$ is multiplied by <br> $$ \\begin{aligned} \\dfrac{(1.2)^2}{0.8} &= \\dfrac{1.44}{0.8}\\\\ &= 1.8 \\end{aligned} $$ <br> Therefore $z$ becomes $180\\%$ of its original value, i.e. it is increased by $80\\%$. <br> Hence, the answer is C." },
+            { id: 14, text: "Which of the following statements about the graph of $y=2(6-x)^2-7$ is true?", hasFigure: false, options: ["The graph opens upwards", "The graph does not cut the $x$-axis", "The $y$-intercept of the graph is $-7$", "The graph passes through the point $(-6,-7)$"], answer: 0, solution: "Since the coefficient of $(6-x)^2$ is positive, the graph is a parabola which opens upwards. <br> Hence, the answer is A." },
+            { id: 15, text: "If the arc length and the area of a sector are $8\\pi\\text{ cm}$ and $80\\pi\\text{ cm}^2$ respectively, then the angle of the sector is", hasFigure: false, options: ["$36^{\\circ}$", "$45^{\\circ}$", "$60^{\\circ}$", "$72^{\\circ}$"], answer: 3, solution: "Let the radius be $r$ cm and the angle of the sector be $\\theta^\\circ$. <br> $$ \\begin{aligned} \\dfrac{\\theta}{360}\\cdot 2\\pi r &= 8\\pi\\\\ \\theta r &= 1440 \\qquad (1)\\\\ \\dfrac{\\theta}{360}\\cdot \\pi r^2 &= 80\\pi\\\\ \\theta r^2 &= 28800 \\qquad (2) \\end{aligned} $$ <br> Dividing $(2)$ by $(1)$, <br> $$ \\begin{aligned} r &= \\dfrac{28800}{1440} = 20 \\end{aligned} $$ <br> Substituting into $(1)$, <br> $$ \\begin{aligned} \\theta &= \\dfrac{1440}{20} = 72 \\end{aligned} $$ <br> Hence, the answer is D." },
+            { id: 16, text: "The ratio of the height of a right circular cylinder to the height of a right circular cone is $32:15$ while the ratio of the volume of the circular cylinder to the volume of the circular cone is $10:9$. If the base radius of the circular cylinder is $25$ cm, then the base radius of the circular cone is", hasFigure: false, options: ["$20$ cm.", "$24$ cm.", "$48$ cm.", "$60$ cm."], answer: 3, solution: "Let the height of the cylinder be $32k$ and the height of the cone be $15k$. <br> Let the base radius of the cone be $r$ cm. <br> $$ \\begin{aligned} \\dfrac{\\text{Volume of cylinder}}{\\text{Volume of cone}} = \\dfrac{\\pi (25)^2(32k)}{\\frac{1}{3}\\pi r^2(15k)} &= \\dfrac{10}{9}\\\\ \\dfrac{3\\cdot 25^2\\cdot 32}{15r^2} &= \\dfrac{10}{9}\\\\ \\dfrac{4000}{r^2} &= \\dfrac{10}{9}\\\\ 36000 &= 10r^2\\\\ r^2 &= 3600\\\\ r &= 60 \\end{aligned} $$ <br> Hence, the answer is D." },
+            { id: 17, text: "In the figure, $ABCD$ is a square. Let $M$ be the mid-point of $BC$. $E$ is a point lying on $AD$ such that $AE:ED=3:1$. $F$ is a point lying on $BC$ produced such that $EF//AM$. $CD$ and $EF$ intersect at the point $G$ while $AM$ and $BG$ intersect at the point $H$. If the area of $\\triangle BMH$ is $4\\text{ cm}^2$, then the area of the trapezium $AEGH$ is", hasFigure: true, isTikz: true, figure: `<svg viewBox="0 0 320 240" class="w-full max-h-[300px]" xmlns="http://www.w3.org/2000/svg"><g stroke="#1e293b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="60" y="40" width="160" height="160"/><line x1="60" y1="40" x2="140" y2="200"/><line x1="180" y1="40" x2="260" y2="200"/><line x1="260" y1="200" x2="220" y2="200"/><line x1="60" y1="200" x2="220" y2="120"/></g><g font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b"><text x="38" y="33">A</text><text x="36" y="212">B</text><text x="221" y="215">C</text><text x="222" y="33">D</text><text x="169" y="33">E</text><text x="222" y="120">G</text><text x="122" y="155">H</text><text x="126" y="215">M</text><text x="261" y="212">F</text></g></svg>`, options: ["$12\\text{ cm}^2$.", "$33\\text{ cm}^2$.", "$39\\text{ cm}^2$.", "$45\\text{ cm}^2$."], answer: 2, solution: "Let the side length of the square be $s$ cm. <br> Use coordinates: <br> $$ B(0,0),\\quad C(s,0),\\quad D(s,s),\\quad A(0,s) $$ <br> Therefore, we have: <br> $$ M\\left(\\frac{s}{2},0\\right) \\text{and } E\\left(\\frac{3s}{4},s\\right) $$ <br> Since $EF//AM$, the slope of $AM$ is <br> $$ \frac{0-s}{\\frac{s}{2}-0}=-2 $$ <br> Hence the equation of $EF$ is <br> $$ y-s=-2\\left(x-\\frac{3s}{4}\\right) $$ <br> At $x=s$, we get <br> $$ y-s=-2\\left(s-\\frac{3s}{4}\\right)=-\\frac{s}{2} $$ <br> so <br> $$ G\\left(s,\\frac{s}{2}\\right). $$ <br> The equation of $BG$ is <br> $$ y=\\frac{1}{2}x $$ <br> and the equation of $AM$ is <br> $$ y=s-2x. $$ <br> Their intersection is $H$, so <br> $$ \\begin{aligned} \\frac{1}{2}x &= s-2x\\\\ \\frac{5}{2}x &= s\\\\ x &= \\frac{2s}{5},\\qquad y=\\frac{s}{5}. \\end{aligned} $$ <br> Thus <br> $$ H\\left(\\frac{2s}{5},\\frac{s}{5}\\right). $$ <br> Now <br> $$ \\begin{aligned} \\text{Area of }\\triangle BMH &= \\dfrac{1}{2}(BM)(\\text{height from }H)\\\\ &= \\dfrac{1}{2}\\cdot \\frac{s}{2}\\cdot \\frac{s}{5}\\\\ &= \\dfrac{s^2}{20} \\end{aligned} $$ <br> Since this area is $4$, <br> $$ \\begin{aligned} \\frac{s^2}{20} &= 4\\\\ s^2 &= 80. \\end{aligned} $$ <br> Using the coordinates of $A,E,G,H$, the area of trapezium $AEGH$ is $\\dfrac{39}{80}s^2 = \\dfrac{39}{80}\\cdot 80 = 39$ <br> Hence, the answer is C." },
+            { id: 18, text: "In the figure, $ABC$ is a straight line. It is given that $AD=37$ cm, $BC=5$ cm, $BD=12$ cm, $CD=13$ cm and $CE=9$ cm. If $\\angle ACE=90^\\circ$, find the perimeter of the quadrilateral $ADCE$.", hasFigure: true, isTikz: true, figure: `<svg viewBox="0 0 320 240" class="w-full max-h-[300px]" xmlns="http://www.w3.org/2000/svg"><g stroke="#1e293b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="53.33" y1="24" x2="53.33" y2="144"/><line x1="53.33" y1="24" x2="26.67" y2="144"/><line x1="26.67" y1="144" x2="26.67" y2="216"/><line x1="26.67" y1="216" x2="293.33" y2="144"/><line x1="293.33" y1="144" x2="53.33" y2="24"/><line x1="293.33" y1="144" x2="26.67" y2="144"/></g><g font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b"><text x="292" y="128">A</text><text x="42" y="158">B</text><text x="8" y="140">C</text><text x="35" y="18">D</text><text x="8" y="210">E</text></g></svg>`, options: ["$76$ cm", "$90$ cm", "$100$ cm", "$180$ cm"], answer: 2, solution: "In $\\triangle ABD$, <br> $$ \\begin{aligned} AB^2 + BD^2 &= AD^2\\\\ AB^2 + 12^2 &= 37^2\\\\ AB &= 35 \\end{aligned} $$ <br> Since $ABC$ is a straight line, <br> $$ \\begin{aligned} AC &= AB+BC = 35+5 = 40 \\end{aligned} $$ <br> In $\\triangle ACE$, <br> $$ \\begin{aligned} AE^2 &= AC^2 + CE^2\\\\ AE^2 &= 40^2+9^2\\\\ AE^2 &= 1681\\\\ AE &= 41 \\end{aligned} $$ <br> Therefore, the perimeter of quadrilateral $ADCE = AD+DC+CE+EA = 37+13+9+41 = 100\\text{ cm}$ <br> Hence, the answer is C." },
+            { id: 19, text: "According to the figure, which of the following must be true?", hasFigure: true, figure: `<svg viewBox="0 0 320 240" class="w-full max-h-[300px]" xmlns="http://www.w3.org/2000/svg"><g stroke="#1e293b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="24.62" y1="91.43" x2="246.15" y2="22.86"/><line x1="246.15" y1="22.86" x2="172.31" y2="91.43"/><line x1="172.31" y1="91.43" x2="272.74" y2="127.31"/><line x1="272.74" y1="127.31" x2="246.15" y2="182.86"/><line x1="98.46" y1="228.57" x2="246.15" y2="182.86"/><line x1="138" y1="56.85" x2="136" y2="61.84"/><line x1="138" y1="56.85" x2="133" y2="54.03"/><line x1="157" y1="210" x2="155" y2="215"/><line x1="157" y1="210" x2="152" y2="208"/><path d="M 192.99 98.81 A 22.15 20.57 0 0 0 187.97 76.88"/><path d="M 235.71 32.56 A 14.77 13.71 0 1 0 232.14 27.19"/><path d="M 266.74 139.84 A 14.77 13.71 0 1 0 258.96 122.39"/><path d="M 252.14 170.33 A 14.77 13.71 0 0 0 232.14 187"/></g><g font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b"><text x="265" y="10">p</text><text x="200" y="85">q</text><text x="286" y="110">r</text><text x="225" y="165">s</text></g></svg>`, options: ["$p+q-r=90^\\circ$", "$p-r+s=180^\\circ$", "$p+q-r+s=270^\\circ$", "$p+q+r-s=540^\\circ$"], answer: 0, solution: "By considering the successive turns of the broken line between the two parallel lines, and using angles at a point together with corresponding angles on parallel lines, we obtain <br> $$ \\begin{aligned} p+q-r &= 90^\\circ. \\end{aligned} $$ <br> Hence, the answer is A." },
+            { id: 20, text: "If the sum of the interior angles of a regular polygon is $900^\\circ$, which of the following is/are true? <br><br> For I: The number of diagonals of the polygon is $7$. <br> For II: The number of folds of rotational symmetry of the polygon is $7$. <br> For III: The number of axes of reflectional symmetry of the polygon is $7$.", hasFigure: false, options: ["I only", "II only", "I and III only", "II and III only"], answer: 3, solution: "Let the number of sides of the polygon be $n$. <br> $$ \\begin{aligned} (n-2) \\times 180^\\circ &= 900^\\circ\\\\ n-2 &= 5\\\\ n &= 7 \\end{aligned} $$ <br> I. <br> $$ \\begin{aligned} \\text{Number of diagonals} &= \\frac{n(n-3)}{2}\\\\ \\text{Number of diagonals} &= \\frac{7(7-3)}{2}\\\\ \\text{Number of diagonals} &= 14 \\end{aligned} $$ <br> So I is false. <br> II. A regular $7$-gon has $7$ folds of rotational symmetry, so II is true. <br> III. A regular $7$-gon has $7$ axes of reflectional symmetry, so III is true. <br> Therefore, II and III only are true. <br> Hence, the answer is D." },
+            { id: 21, text: "In the figure, $ABCD$ is a rhombus. Denote the point of intersection of $AC$ and $BD$ by $E$. Let $F$ be a point such that $BH//EF$ and $CFHG$ is a rectangle, where $G$ and $H$ are points lying on $AC$ produced and $BC$ produced respectively. Denote the point of intersection of $CD$ and $EF$ by $I$. Which of the following must be true? <br><br> I. $CI=FI$ <br> II. $\\angle ABE=\\angle GCH$ <br> III. $\\triangle ADE \\cong \\triangle HCF$", hasFigure: true, isTikz: true, figure: `<svg viewBox="0 0 320 240" class="w-full max-h-[300px]" xmlns="http://www.w3.org/2000/svg"><g stroke="#1e293b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="160" y1="213.33" x2="53.33" y2="213.33"/><line x1="106.67" y1="120.96" x2="53.33" y2="213.33"/><line x1="106.67" y1="120.96" x2="213.33" y2="120.96"/><line x1="213.33" y1="120.96" x2="160" y2="213.33"/><line x1="213.33" y1="120.96" x2="53.33" y2="213.33"/><line x1="160" y1="213.33" x2="106.67" y2="120.96"/><line x1="266.67" y1="28.58" x2="293.33" y2="74.77"/><line x1="293.33" y1="74.77" x2="213.33" y2="120.96"/><line x1="213.33" y1="120.96" x2="186.67" y2="74.77"/><line x1="186.67" y1="74.77" x2="266.67" y2="28.58"/><line x1="266.67" y1="28.58" x2="213.33" y2="120.96"/><line x1="186.67" y1="74.77" x2="133.33" y2="167.15"/></g><g font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b"><text x="33.15" y="224.15">A</text><text x="161.34" y="224.97">B</text><text x="213.92" y="135.71">C</text><text x="90.51" y="110.47">D</text><text x="121.07" y="188.01">E</text><text x="294.45" y="71.52">G</text><text x="268.16" y="25.50">H</text><text x="150.08" y="112.11">I</text><text x="174.32" y="66.51">F</text></g></svg>`, options: ["I and II only", "I and III only", "II and III only", "I, II and III"], answer: 1, solution: "Use coordinates: <br> $$ A(-a,0),\\quad B(0,-b),\\quad C(a,0),\\quad D(0,b),\\quad E(0,0) $$ <br> Then $ABCD$ is a rhombus and $E$ is the intersection point of the diagonals. <br> Since $G$ lies on $AC$ produced and $CFHG$ is a rectangle, let <br> $$ G(2a,0),\\quad H(2a,b),\\quad F(a,b) $$ <br> Then $BH//EF$ is satisfied. <br> For I, line $CD$ joins $(a,0)$ and $(0,b)$, so its equation is <br> $$ \\dfrac{x}{a}+\\dfrac{y}{b}=1. $$ <br> Line $EF$ passes through $(0,0)$ and $(a,b)$, so its equation is <br> $$ y=\\dfrac{b}{a}x. $$ <br> Solving gives <br> $$ I\\left(\\frac{a}{2},\\frac{b}{2}\\right). $$ <br> Hence <br> $$ \\begin{aligned} CI &= \\sqrt{\\left(a-\\frac{a}{2}\\right)^2+\\left(0-\\frac{b}{2}\\right)^2} = \\frac{1}{2}\\sqrt{a^2+b^2},\\\\ FI &= \\sqrt{\\left(a-\\frac{a}{2}\\right)^2+\\left(b-\\frac{b}{2}\\right)^2} = \\frac{1}{2}\\sqrt{a^2+b^2}. \\end{aligned} $$ <br> So $CI=FI$. Hence I is true. <br> For II, <br> $$ \\angle ABE \\neq \\angle GCH $$ <br> in general, so II is false. <br> For III, <br> In $\triangle ADE$, <br> $$ \\begin{aligned} AD &= \\sqrt{a^2+b^2}\\\\ AE &= a\\\\ DE &= b \\end{aligned} $$ <br> In $\triangle HCF$, <br> $$ \\begin{aligned} HC &= \\sqrt{a^2+b^2}\\\\ HF &= a\\\\ CF &= b \\end{aligned} $$ <br> Therefore, <br> $$ \\triangle ADE \\cong \\triangle HCF $$ <br> by SSS. Hence III is true. <br> Therefore, I and III only are true. <br> Hence, the answer is B." },
+            { id: 22, text: "In the figure, $ABCDE$ is a circle. $AC$ and $BE$ are diameters of the circle. Let $P$ be the point of intersection of $AC$ and $BD$. If $\\angle ABE=46^{\\circ}$ and $\\angle DBE=16^{\\circ}$, then $\\angle APD=$", hasFigure: true, isTikz: true, figure: `<svg viewBox="0 0 320 240" class="w-full max-h-[300px]" xmlns="http://www.w3.org/2000/svg"><g stroke="#1e293b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="160" cy="120" r="97.13"/><line x1="198.32" y1="30.75" x2="121.68" y2="209.25"/><line x1="256.30" y1="107.31" x2="63.70" y2="132.69"/><line x1="256.30" y1="107.31" x2="81.38" y2="177.04"/><line x1="198.32" y1="30.75" x2="256.30" y2="107.31"/><path d="M 150.83 141.36 A 10.50 10.50 0 0 0 136.95 154.93"/></g><g font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b"><text x="196.54" y="22">A</text><text x="259.78" y="109">B</text><text x="109.39" y="222">C</text><text x="66.35" y="185">D</text><text x="47.45" y="135">E</text><text x="147.54" y="165">P</text></g></svg>`, options: ["$104^{\\circ}$.", "$108^{\\circ}$.", "$120^{\\circ}$.", "$135^{\\circ}$."], answer: 1, solution: "Denote $O$ the intersection point of $AC$ and $BE$. Note that $O$ is the centre of the circle. <br> $$ \\begin{aligned} \\angle AOE &= 2\\angle ABE = 92^{\\circ}\\\\ \\angle DOE &= 2\\angle DBE = 32^{\\circ} \\end{aligned} $$ <br> $$ \\begin{aligned} \\angle BOA + \\angle AOE &= 180^{\\circ}\\\\ \\angle BOA &= 88^{\\circ} \\end{aligned} $$ <br> $$ \\begin{aligned} \\angle ODB &= \\angle BOC = 16^{\\circ} \\end{aligned} $$ <br> $$ \\begin{aligned} \\angle AOD &= \\angle AOE + \\angle EOD\\\\ &= 92^{\\circ}+32^{\\circ}\\\\ &= 124^{\\circ} \\end{aligned} $$ <br> $$ \\begin{aligned} \\angle AOD &= \\angle APD + \\angle ODB\\\\ 124^{\\circ} &= \\angle APD + 16^{\\circ}\\\\ \\angle APD &= 108^{\\circ} \\end{aligned} $$ <br> Hence, the answer is B." },
+            { id: 23, text: "In the figure, $ABC$ is a straight line. $\\dfrac{BC}{AD}=$", hasFigure: true, isTikz: true, figure: `<svg viewBox="0 0 320 240" class="w-full max-h-[300px]" xmlns="http://www.w3.org/2000/svg"><g stroke="#1e293b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M 290.91 198.22 L 274.43 198.22 L 274.43 213.33 L 290.91 213.33 Z"/><path d="M 139.67 213.33 A 23.31 21.37 0 0 0 131.54 197.10"/><path d="M 52.40 213.33 A 23.31 21.37 0 0 0 47.49 200.20"/><line x1="290.91" y1="26.67" x2="290.91" y2="213.33"/><line x1="290.91" y1="213.33" x2="29.09" y2="213.33"/><line x1="29.09" y1="213.33" x2="290.91" y2="26.67"/><line x1="290.91" y1="26.67" x2="116.36" y2="213.33"/></g><g font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b"><text x="145.01" y="204.93">φ</text><text x="57.83" y="207.64">θ</text><text x="292.33" y="20">D</text><text x="7.22" y="227.00">A</text><text x="292.52" y="223.44">C</text><text x="106.51" y="227.44">B</text></g></svg>`, options: ["$\\dfrac{\\sin\\theta}{\\tanφ}$.", "$\\dfrac{\\tanφ}{\\sin\\theta}$.", "$\\dfrac{\\cos\\theta}{\\tanφ}$.", "$\\dfrac{\\tanφ}{\\cos\\theta}$."], answer: 0, solution: "In $\triangle ACD$, <br> $$ \\begin{aligned} \\sin\\theta &= \\dfrac{CD}{AD}\\\\ CD &= AD\\sin\\theta \\end{aligned} $$ <br> In $\triangle BCD$, <br> $$ \\begin{aligned} \\tanφ &= \\dfrac{CD}{BC}\\\\ BC &= \\dfrac{CD}{\\tanφ} \\end{aligned} $$ <br> Therefore, <br> $$ \\begin{aligned} \\dfrac{BC}{AD} &= \\dfrac{CD/\\tanφ}{AD}\\\\ &= \\dfrac{AD\\sin\\theta}{AD\\tanφ}\\\\ &= \\dfrac{\\sin\\theta}{\\tanφ} \\end{aligned} $$ <br> Hence, the answer is A." },
+            { id: 24, text: "The coordinates of the point $U$ are $(-3,-8)$. $U$ is rotated anticlockwise about the origin through $90^\\circ$ to the point $V$. $V$ is then reflected with respect to the straight line $x=2$ to the point $W$. Find the $x$-coordinate of $W$.", hasFigure: false, options: ["$-4$", "$-3$", "$7$", "$12$"], answer: 0, solution: "$$ \\begin{aligned} U(-3,-8) \\to V(8,-3)\\\\ V(8,-3) \\to W(-4,-3) \\end{aligned} $$ <br> Hence, the answer is A." },
+            { id: 25, text: "The coordinates of the points $A$ and $B$ are $(-3,1)$ and $(-7,-5)$ respectively. If $P$ is a point lying on the straight line $x-y+13=0$ such that $AP=PB$, then the $y$-coordinate of $P$ is", hasFigure: false, options: ["$-11$.", "$-2$.", "$2$.", "$11$."], answer: 2, solution: "Since $AP=PB$, point $P$ lies on the perpendicular bisector of $AB$. <br> Mid-point of $AB$: <br> $$ \\left(\\dfrac{-3+(-7)}{2},\\dfrac{1+(-5)}{2}\right)=(-5,-2) $$ <br> Slope of $AB$: <br> $$ \\dfrac{-5-1}{-7-(-3)}=\\dfrac{-6}{-4}=\\frac{3}{2} $$ <br> So the slope of the perpendicular bisector is $-\\dfrac{2}{3}$. <br> Hence its equation is <br> $$ y+2=-\\dfrac{2}{3}(x+5) $$ <br> Since $P$ also lies on <br> $$ x-y+13=0 $$ <br> we have <br> $$ y=x+13 $$ <br> Substituting, <br> $$ \\begin{aligned} x+13+2 &= -\\dfrac{2}{3}(x+5)\\\\ x+15 &= -\\dfrac{2}{3}x-\\frac{10}{3}\\\\ 3x+45 &= -2x-10\\\\ x &= -11 \\end{aligned} $$ <br> Then <br> $$ \\begin{aligned} y &= x+13 = -11+13 = 2 \\end{aligned} $$ <br> Hence, the answer is C." },
+            { id: 26, text: "Find the constant $k$ such that the straight lines $6x-8y=7k$ and $kx+12y=5$ do not intersect with each other.", hasFigure: false, options: ["$-16$", "$-9$", "$9$", "$16$"], answer: 1, solution: "For two straight lines not to intersect, they must be parallel. <br> Rewrite the first line: <br> $$ \\begin{aligned} 6x-8y &= 7k\\\\ y &= \\dfrac{3}{4}x-\\dfrac{7k}{8} \\end{aligned} $$ <br> Rewrite the second line: <br> $$ \\begin{aligned} kx+12y &= 5\\\\ y &= -\\dfrac{k}{12}x+\\dfrac{5}{12} \\end{aligned} $$ <br> For parallel lines, <br> $$ \\begin{aligned} \\dfrac{3}{4} &= -\\dfrac{k}{12}\\\\ k &= -9 \\end{aligned} $$ <br> Hence, the answer is B." },
+            { id: 27, text: "Denote the circle $3x^2+3y^2-6x+12y-4=0$ by $C$. Which of the following are true? <br><br> I. The origin lies inside $C$. <br> II. The circumference of $C$ is less than $16$. <br> III. The perpendicular distance from the centre of $C$ to the $x$-axis is $2$.", hasFigure: false, options: ["I and II only", "I and III only", "II and III only", "I, II and III"], answer: 3, solution: "$$ \\begin{aligned} x^2+y^2-2x+4y-\\dfrac{4}{3} &= 0\\\\ (x-1)^2+(y+2)^2 &= \\frac{19}{3} \\end{aligned} $$ <br> So the centre is $(1,-2)$ and the radius is $\\sqrt{\\dfrac{19}{3}}$. <br> I. Distance from the origin to the centre: <br> $$ \\sqrt{1^2+(-2)^2}=\\sqrt{5} $$ <br> Since $\\sqrt{5}<\\sqrt{\\dfrac{19}{3}},$ the origin lies inside $C$. <br> So I is true. <br> II. Circumference: <br> $$ 2\\pi r = 2\\pi\\sqrt{\\frac{19}{3}} < 16. $$ <br> So II is true. <br> III. The perpendicular distance from $(1,-2)$ to the $x$-axis is $2$. <br> So III is true. <br> Hence, the answer is D." },
+            { id: 28, text: "Two numbers are randomly drawn at the same time from six cards numbered $1$, $2$, $3$, $4$, $5$ and $6$ respectively. Find the probability that the product of the numbers drawn is not less than $12$.", hasFigure: false, options: ["$\\dfrac{1}{3}$", "$\\dfrac{2}{3}$", "$\\dfrac{7}{15}$", "$\\dfrac{8}{15}$"], answer: 2, solution: "The total number of ways of drawing $2$ cards from $6$ cards is $C^{6}_{2}=15$. <br> The favourable pairs are <br> $$ (2,6),\\ (3,4),\\ (3,5),\\ (3,6),\\ (4,5),\\ (4,6),\\ (5,6) $$ <br> which are $7$ pairs. <br> Therefore, the required probability is $\\dfrac{7}{15}$. <br> Hence, the answer is C." },
+            { id: 29, text: "The box-and-whisker diagram below shows the distribution of the numbers of tokens got by a group of children in a game. If the range of the distribution is the triple of its inter-quartile range, find $m$.", hasFigure: true, figure: `<svg viewBox="0 0 420 120" class="w-full max-h-[220px]" xmlns="http://www.w3.org/2000/svg"><g stroke="#1e293b" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="20" y1="84" x2="342" y2="84"/><line x1="31.7" y1="52" x2="78.5" y2="52"/><line x1="195.5" y1="52" x2="321.9" y2="52"/><rect x="78.5" y="40" width="117" height="24"/><line x1="140.9" y1="40" x2="140.9" y2="64"/><line x1="31.7" y1="84" x2="31.7" y2="56" stroke-dasharray="3,4"/><line x1="78.5" y1="84" x2="78.5" y2="64" stroke-dasharray="3,4"/><line x1="140.9" y1="84" x2="140.9" y2="64" stroke-dasharray="3,4"/><line x1="195.5" y1="84" x2="195.5" y2="64" stroke-dasharray="3,4"/><line x1="321.9" y1="84" x2="321.9" y2="56" stroke-dasharray="3,4"/><line x1="31.7" y1="84" x2="31.7" y2="94"/><line x1="78.5" y1="84" x2="78.5" y2="94"/><line x1="140.9" y1="84" x2="140.9" y2="94"/><line x1="195.5" y1="84" x2="195.5" y2="94"/><line x1="321.9" y1="84" x2="321.9" y2="94"/></g><g font-family="sans-serif" font-size="11" fill="#1e293b"><text x="14" y="110">136</text><text x="60" y="110">163</text><text x="123" y="110">224</text><text x="182" y="112" font-style="italic">m</text><text x="302" y="110">472</text><text x="333" y="100">Number of tokens</text></g></svg>`, options: ["$248$", "$275$", "$336$", "$360$"], answer: 1, solution: "From the box-and-whisker diagram, <br> $$ \\begin{aligned} \\text{minimum} &= 136,\\\\ Q_1 &= 163,\\\\ Q_3 &= m,\\\\ \\text{maximum} &= 472. \\end{aligned} $$ <br> So the range is $472-136=336$. <br> The inter-quartile range is $m-163$. <br> Since the range is triple the inter-quartile range, <br> $$ \\begin{aligned} 336 &= 3(m-163)\\\\ 336 &= 3m-489\\\\ 3m &= 825\\\\ m &= 275 \\end{aligned} $$ <br> Hence, the answer is B." },
+            { id: 30, text: "Consider the following positive integers: <br> $$ 5 \\qquad 5 \\qquad 5 \\qquad 6 \\qquad 9 \\qquad 9 \\qquad 11 \\qquad 13 \\qquad m \\qquad n $$ <br> Let $p$, $q$ and $r$ be the standard deviation, the mode and the median of the above positive integers respectively. If the mean of the above positive integers is $7$, which of the following must be true? <br><br> I. $p>3$ <br> II. $q=5$ <br> III. $r<7$", hasFigure: false, options: ["I and II only", "I and III only", "II and III only", "I, II and III"], answer: 3, solution: "Since the mean is $7$ and there are $10$ integers, their total sum is $10\\times 7=70$. <br> The sum of the known integers is $5+5+5+6+9+9+11+13=63$. <br> Hence, $m+n=70-63=7$ <br> Since $m$ and $n$ are positive integers, the possibilities are $(1,6),\\ (2,5),\\ (3,4)$ in some order. <br> II. In all cases, $5$ occurs most frequently. So $q=5$. <br> Hence II is true. <br> III. Arranging the numbers in ascending order, the $5^{\text{th}}$ and $6^{\text{th}}$ terms are at most $6$, so the median <br> $$ \\begin{aligned} r<7. \\end{aligned} $$ <br> Hence III is true. <br> I. Checking the three possible cases, the standard deviation is always greater than $3$. Hence I is true. <br> Therefore, I, II and III are all true. <br> Hence, the answer is D." },
+            { id: 31, text: "Find the H.C.F. of $u^2v^3w$, $u^3vw^2$ and $u^2v^3w^4$.", hasFigure: false, options: ["$uvw$", "$u^2vw$", "$u^2v^3w^4$", "$u^3v^3w^4$"], answer: 1, solution: "The H.C.F. is obtained by taking the lowest power of each common variable factor present in all three expressions:<br><br>$$\\text{Power of } u: \\min(2, 3, 2) = 2$$$$\\text{Power of } v: \\min(3, 1, 3) = 1$$$$\\text{Power of } w: \\min(1, 2, 4) = 1$$<br>Therefore, the H.C.F. is $u^2vw$." },
+            { id: 32, text: "$$\\text{AF000000000BC}_{16} =$$", hasFigure: false, options: ["$175 \\times 16^{11} + 188$", "$192 \\times 16^{11} + 205$", "$175 \\times 16^{12} + 188$", "$192 \\times 16^{12} + 205$"], answer: 0, solution: "Convert the hexadecimal blocks into denary values first:<br>$$\\text{AF}_{16} = 10 \\times 16 + 15 = 175$$$$\\text{BC}_{16} = 11 \\times 16 + 12 = 188$$<br>Now, map the place value position. There are exactly 11 hexadecimal digits following the \"AF\" block in $\\text{AF000000000BC}_{16}$:<br>$$\\text{AF000000000BC}_{16} = \\text{AF}_{16} \\times 16^{11} + \\text{BC}_{16}$$$$= 175 \\times 16^{11} + 188$$" },
+            { id: 33, text: "If $x = \\log_{2}y - 2$ and $(\\log_{2}y)^2 = 5 \\log_{2}y + x - 7$, then $y =$", hasFigure: false, options: ["$1$", "$8$", "$1 \\text{ or } 3$", "$3 \\text{ or } 8$"], answer: 1, solution: "Let $t = \\log_{2}y$. We can rewrite the system of equations as:<br>$$x = t - 2$$<br>Substitute $x$ into the quadratic equation:<br>$$t^2 = 5t + (t - 2) - 7$$$$t^2 - 6t + 9 = 0$$$$(t - 3)^2 = 0 \\implies t = 3$$<br>Convert back to find $y$:<br>$$\\log_{2}y = 3 \\implies y = 2^3 = 8$$" },
+            { id: 34, text: "The graph in the figure shows the linear relation between $y^3$ and $\\sqrt{x}$. If $x = 36$, then $y =$", hasFigure: true, figure: `<svg viewBox="0 0 320 320" class="w-full max-h-[300px]" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 8 4 L 0 8 Z" fill="#1e293b"/></marker></defs><g stroke="#1e293b" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="24" y1="256" x2="296" y2="256" marker-end="url(#arrowhead)"/><line x1="48" y1="280" x2="48" y2="24" marker-end="url(#arrowhead)"/><line x1="42" y1="48" x2="54" y2="48"/><line x1="216" y1="250" x2="216" y2="262"/><line x1="45.89" y1="42.35" x2="226.37" y2="274.74"/></g><g font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b"><text x="300" y="275">√x</text><text x="28" y="18">y<tspan baseline-shift="super" font-size="10">3</tspan></text><text x="30" y="274">O</text><text x="210" y="280">2</text><text x="18" y="54">32</text></g></svg>`, options: ["$-64$", "$-16$", "$-8$", "$-4$"], answer: 3, solution: "Identify coordinates on the linear plane $(\\sqrt{x}, y^3)$ as $(0, 32)$ and $(2, 0)$.<br>Calculate the slope $m$:<br>$$m = \\frac{0 - 32}{2 - 0} = -16$$<br>Thus, the straight-line equation is:<br>$$y^3 = -16\\sqrt{x} + 32$$<br>Substitute $x = 36$ (which gives $\\sqrt{x} = 6$):<br>$$y^3 = -16(6) + 32 = -96 + 32 = -64$$$$y = \\sqrt[3]{-64} = -4$$" },
+            { id: 35, text: "Let $z = (a - 5)i + \\frac{(a + 2)i}{2 + i}$. If $a$ and $z$ are real numbers, then $a - z =$", hasFigure: false, options: ["$2$", "$3$", "$4$", "$5$"], answer: 0, solution: "Multiply the numerator and denominator of the fractional term by the complex conjugate of $(2 + i)$:<br>$$\\dfrac{(a + 2)i(2 - i)}{(2 + i)(2 - i)} = \\dfrac{(a + 2)(2i - i^2)}{4 - i^2} = \\dfrac{a + 2}{5} + \\dfrac{2(a + 2)}{5}i$$<br>Substitute back into the equation for $z$:<br>$$z = \\frac{a + 2}{5} + \\left(a - 5 + \\frac{2(a + 2)}{5}\\right)i$$<br>Since $z$ is real, the imaginary part must be zero:<br>$$a - 5 + \\frac{2a + 4}{5} = 0 \\implies 5a - 25 + 2a + 4 = 0$$$$7a - 21 = 0 \\implies a = 3$$<br>Now substitute $a = 3$ back into the real part of $z$:<br>$$z = \\frac{3 + 2}{5} = 1$$<br>Finally:<br>$$a - z = 3 - 1 = 2$$" },
+            { id: 36, text: "The sum of the first $n$ terms of a sequence is $n(2n + 3)$. Which of the following are true?<br><br>I. 14 is a term of the sequence.<br>II. The $n$-th term of the sequence is $4n + 1$.<br>III. The sequence is an arithmetic sequence.", hasFigure: false, options: ["I and II only", "I and III only", "II and III only", "I, II and III"], answer: 2, solution: "We find the $n$-th term $u_n$ using the relation $u_n = S_n - S_{n-1}$ (for $n > 1$):<br>$$u_n = n(2n+3) - (n-1)(2(n-1)+3)$$$$u_n = (2n^2 + 3n) - (n-1)(2n+1)$$$$u_n = (2n^2 + 3n) - (2n^2 - n - 1) = 4n + 1$$<br>This is also valid for $n=1$ since $u_1 = S_1 = 5$. Thus, Statement II is true.<br><br>Since $u_n = 4n + 1$ is linear in terms of $n$, it is an arithmetic sequence with a constant difference of $4$. Thus, Statement III is true.<br><br>To check Statement I, let $4n + 1 = 14 \\implies 4n = 13 \\implies n = 3.25$. Since $n$ is not an integer, 14 is not a term. Thus, Statement I is false." },
+            { id: 37, text: "Consider the following system of inequalities:<br>$$\\begin{cases} x - 2y \\le 1 \\\\ x + 4y \\le 13 \\\\ 2x - y \\ge -1 \\end{cases}$$<br>Let $R$ be the bounded region representing the solution. Find the constant $c$ such that the least value of $5x - 2y + c$ is 22, where $(x, y)$ is a point in $R$.", hasFigure: false, options: ["$1$", "$23$", "$25$", "$29$"], answer: 2, solution: "Identify the boundary coordinates of region $R$ by solving the three boundary equations in pairs:<br>1. Solving $x - 2y = 1$ and $x + 4y = 13$ yields $(5, 2)$<br>2. Solving $x - 2y = 1$ and $2x - y = -1$ yields $(-1, -1)$<br>3. Solving $x + 4y = 13$ and $2x - y = -1$ yields $(1, 3)$<br><br>Now, evaluate the objective expression $5x - 2y$ at each of these boundary points:<br>At $(5, 2)$: $5(5) - 2(2) = 21$<br>At $(-1, -1)$: $5(-1) - 2(-1) = -3$ &nbsp;&nbsp;&nbsp;&nbsp; *(Least value)*<br>At $(1, 3)$: $5(1) - 2(3) = -1$<br><br>Since the minimum value of $5x - 2y + c$ is given as 22:<br>$$-3 + c = 22 \\implies c = 25$$" },
+            { id: 38, text: "In the figure, $TA$ is the tangent to the circle at point $A$. $BC$ produced and $ED$ produced meet at $P$. If $\\angle ACB = 43^\\circ$, $\\angle DAT = 55^\\circ$ and $\\angle CPD = 29^\\circ$, then $\\angle CBE =$", hasFigure: true, figure: `<svg viewBox="0 0 320 252" class="w-full max-h-[300px]" xmlns="http://www.w3.org/2000/svg"><g stroke="#1e293b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="205.71" cy="137.14" r="78.21"/><line x1="227.63" y1="62.07" x2="38.00" y2="207.08"/><line x1="38.00" y1="207.08" x2="267.56" y2="185.01"/><line x1="267.56" y1="185.01" x2="227.63" y2="62.07"/><line x1="278.47" y1="108.47" x2="127.52" y2="138.62"/><line x1="278.47" y1="108.47" x2="249.00" y2="33.65"/><line x1="278.47" y1="108.47" x2="154.12" y2="195.92"/><path d="M 262.22 168.57 A 17.31 17.31 0 0 0 250.33 186.68"/></g><g font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b"><text x="282.9" y="101.6">A</text><text x="267.4" y="198.2">B</text><text x="144.0" y="212.5">C</text><text x="112.0" y="131.5">D</text><text x="224.0" y="53.5">E</text><text x="247.0" y="25.5">T</text><text x="18.0" y="219.0">P</text></g></svg>`, options: ["$64^\\circ$", "$69^\\circ$", "$72^\\circ$", "$78^\\circ$"], answer: 1, solution: "Join $CD$.<br>We have:<br>$$\\angle DCA = \\angle DAT = 55^\\circ$$<br>$$\\angle DCB = \\angle DCA + \\angle ACB = 55^\\circ + 43^\\circ = 98^\\circ$$<br>For $\\triangle PCD$:<br>$$\\angle DCB = \\angle CPD + \\angle PDC$$$$98^\\circ = 29^\\circ + \\angle PDC \\implies \\angle PDC = 69^\\circ$$<br>In cyclic quadrilateral $BCDE$, the exterior angle is equal to its opposite interior angle:<br>$$\\angle CBE = \\angle PDC = 69^\\circ$$" },
+            { id: 39, text: "For $0^\\circ < \\theta \\le 360^\\circ$, how many roots does the equation $4 \\cos^2\\theta - 3 \\cos\\theta - 1 = 0$ have?", hasFigure: false, options: ["$3$", "$4$", "$5$", "$6$"], answer: 0, solution: "Factorize the quadratic expression in terms of $\\cos\\theta$:<br>$$4\\cos^2\\theta - 3\\cos\\theta - 1 = 0$$$$(4\\cos\\theta + 1)(\\cos\\theta - 1) = 0$$<br>This gives:<br>$$\\cos\\theta = -\\frac{1}{4} \\quad \\text{or} \\quad \\cos\\theta = 1$$<br>Analyze each within the specified range $0^\\circ < \\theta \\le 360^\\circ$:<br>1. $\\cos\\theta = -\\frac{1}{4}$ has exactly 2 solutions (located in Quadrant II and Quadrant III).<br>2. $\\cos\\theta = 1$ has exactly 1 solution ($\\theta = 360^\\circ$, since $0^\\circ$ is excluded).<br><br>Total number of roots $= 2 + 1 = 3$." },
+            { id: 40, text: "In the figure, the base $PQR$ of the tetrahedron $PQRS$ lies on the horizontal ground. It is given that $Q$ is vertically below $S$. If $\\angle PQR = 90^\\circ$, $\\angle QPS = 30^\\circ$ and $\\angle QRS = 45^\\circ$, then $\\cos\\angle PRS =$", hasFigure: true, figure: `<svg viewBox="0 0 320 240" class="w-full max-h-[300px]" xmlns="http://www.w3.org/2000/svg"><g stroke="#1e293b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="160" y1="26.67" x2="160" y2="160" stroke-dasharray="4 4"/><line x1="160" y1="160" x2="26.67" y2="213.33" stroke-dasharray="4 4"/><line x1="160" y1="160" x2="293.33" y2="213.33" stroke-dasharray="4 4"/><line x1="160" y1="26.67" x2="26.67" y2="213.33"/><line x1="26.67" y1="213.33" x2="293.33" y2="213.33"/><line x1="293.33" y1="213.33" x2="160" y2="26.67"/></g><g font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b"><text x="155" y="18">S</text><text x="298" y="220">P</text><text x="155" y="176">Q</text><text x="8" y="220">R</text></g></svg>`, options: ["$\\frac{1}{2}$", "$\\frac{3}{4}$", "$\\frac{\\sqrt{2}}{4}$", "$\\frac{\\sqrt{3}}{6}$"], answer: 2, solution: "Let the vertical altitude $SQ = k$. Using the right-angled properties of $\triangle SQR$ and $\triangle SQP$ (as $Q$ is directly below $S$):<br>In $\triangle SQR$:<br>$$RQ = \\frac{SQ}{\\tan 45^\\circ} = k$$$$RS = \\frac{SQ}{\\sin 45^\\circ} = \\sqrt{2}k$$<br>In $\triangle SQP$:<br>$$PQ = \\frac{SQ}{\\tan 30^\\circ} = \\sqrt{3}k$$$$PS = \\frac{SQ}{\\sin 30^\\circ} = 2k$$<br>In the horizontal right-angled base $\triangle PQR$:<br>$$PR^2 = PQ^2 + RQ^2 = (\\sqrt{3}k)^2 + k^2 = 4k^2 \\implies PR = 2k$$<br>Apply the Cosine Rule to $\triangle PRS$:<br>$$\\cos\\angle PRS = \\frac{PR^2 + RS^2 - PS^2}{2 \\cdot PR \\cdot RS}$$$$= \\frac{(2k)^2 + (\\sqrt{2}k)^2 - (2k)^2}{2(2k)(\\sqrt{2}k)} = \\frac{2k^2}{4\\sqrt{2}k^2} = \\frac{\\sqrt{2}}{4}$$" },
+            { id: 41, text: "Let $G$, $H$, $I$ and $J$ be the centroid, the orthocentre, the in-centre and the circumcentre of $\triangle PQR$ respectively. If $\\angle PQR = \\angle PRQ = 22^\\circ$, which of the following are true?<br><br>I. $G$ lies inside $\triangle PQR$.<br>II. $H$ lies outside $\triangle PQR$.<br>III. $I$, $J$ and $Q$ are collinear.", hasFigure: false, options: ["I and II only", "I and III only", "II and III only", "I, II and III"], answer: 0, solution: "Calculate the vertex angle $\\angle QPR$:<br>$$\\angle QPR = 180^\\circ - 22^\\circ - 22^\\circ = 136^\\circ$$<br>Thus, $\triangle PQR$ is an obtuse-angled isosceles triangle where $PQ = PR$.<br><br>**Statement I is true**: The centroid ($G$) always lies strictly inside any triangle.<br>**Statement II is true**: The orthocentre ($H$) of an obtuse triangle always lies outside.<br>**Statement III is false**: Because the triangle is symmetric with respect to $PQ = PR$, centers $I$ and $J$ must lie on the perpendicular bisector of base $QR$. Vertex $Q$ does not lie on this axis of symmetry, meaning they cannot be collinear." },
+            { id: 42, text: "A queue is formed by 2 managers and 7 officers. If no managers are next to each other, how many different queues can be formed?", hasFigure: false, options: ["$80\\,640$", "$141\\,120$", "$282\\,240$", "$362\\,880$"], answer: 2, solution: "Use the slot/gap separation technique:<br>1. Arrange the 7 officers: $7! = 5040$ ways.<br>2. This setup creates 8 vacant slots to safely place the 2 managers (6 between officers and 2 at the ends):<br>$$\\_ O \\_ O \\_ O \\_ O \\_ O \\_ O \\_ O \\_$$<br>3. Choose and arrange 2 slots for the 2 managers:<br>$$P^8_2 = 8 \\times 7 = 56 \\text{ ways}$$<br>Total combinations $= 5040 \\times 56 = 282\\,240$." },
+            { id: 43, text: "There are three questions in a test. The probabilities that a student answers the first question correctly, the second question correctly and the third question correctly are 0.6, 0.7 and 0.8 respectively. Find the probability that the student answers at least 1 question correctly in this test.", hasFigure: false, options: ["$0.024$", "$0.188$", "$0.812$", "$0.976$"], answer: 3, solution: "Find the individual failure probabilities:<br>$$\\text{P(1st incorrect)} = 1 - 0.6 = 0.4$$$$\\text{P(2nd incorrect)} = 1 - 0.7 = 0.3$$$$\\text{P(3rd incorrect)} = 1 - 0.8 = 0.2$$<br>Multiply to find the joint probability of all incorrect:<br>$$\\text{P(All incorrect)} = 0.4 \\times 0.3 \\times 0.2 = 0.024$$<br>$$\\text{P(At least 1 correct)} = 1 - 0.024 = 0.976$$" },
+            { id: 44, text: "In an examination, the scores (in marks) of the candidates are as follows:<br><br>$$\\text{39, 10, 13, 16, 17, 19, 25, 26, 28, 30, 30, 32}$$<br><br>Which of the following is/are true?<br><br>I. The median of the examination scores of the candidates is 22 marks.<br>II. The standard score of each candidate in the examination is lower than 2.<br>III. The standard deviation of the examination scores of the candidates exceeds 8 marks.", hasFigure: false, options: ["I only", "II only", "I and III only", "II and III only"], answer: 3, solution: "Arrange the 12 scores in ascending order:<br>$$10, 13, 16, 17, 19, 25, 26, 28, 30, 30, 32, 39$$<br>**Statement I is false**: The median $= 25.5$.<br> **Statement III is true**: Compute the mean $(\\mu)$ and population standard deviation $(\\sigma)$:<br>$$\\mu = \\frac{285}{12} = 23.75$$$$\\sigma = \\sqrt{\\frac{\\sum(x_i - \\mu)^2}{12}} \\approx 8.35$$<br>Since $8.35 > 8$, the standard deviation exceeds 8 marks.<br> **Statement II is true**: The highest score is 39. Its standard score is:<br>$$z = \\frac{39 - 23.75}{8.35} \\approx 1.83$$<br>Since the maximum standard score is $1.83 < 2$, all candidate standard scores are lower than 2." },
+            { id: 45, text: "If the variance of the seven numbers $x_1, x_2, x_3, x_4, x_5, x_6$ and $x_7$ is 16, then the standard deviation of the seven numbers $9x_1 - 5, 9x_2 - 5, 9x_3 - 5, 9x_4 - 5, 9x_5 - 5, 9x_6 - 5$ and $9x_7 - 5$ is", hasFigure: false, options: ["$31$", "$36$", "$139$", "$144$"], answer: 1, solution: "Let the original standard deviation be $\\sigma_x = \\sqrt{\\text{Variance}} = \\sqrt{16} = 4$.<br><br>Under a linear transformation of the form $y = ax + b$:<br>1. Subtracting a constant ($b = -5$) shifts the central location but does not alter measures of dispersion.<br>2. Multiplying by a constant ($a = 9$) scales the standard deviation by its absolute value $|a|$:<br>$$\\sigma_y = |a| \\cdot \\sigma_x = 9 \\times 4 = 36$$" }
+        ];
+
+        // State Tracking variables
+        let currentIdx = 0;
+        let isReviewed = false;
+        let userAnswers = Array(45).fill(null); 
+        let timePerQuestion = Array(45).fill(0); 
+        let overallSeconds = 0;
+        let qTimerInterval = null;
+
+        // Drawing state elements
+        const canvas = document.getElementById('drawing-canvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        let penColor = '#ef4444'; 
+        let activeTool = 'pen'; 
+        let canvasPaths = {}; 
+
+        // Straight Line Detection helpers
+        let strokePoints = [];
+        let strokeTimer = null;
+        const HOLD_THRESHOLD = 500; 
+
+        // Initialize timers
+        setInterval(() => {
+            overallSeconds++;
+            const hours = String(Math.floor(overallSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((overallSeconds % 3600) / 60)).padStart(2, '0');
+            const seconds = String(overallSeconds % 60).padStart(2, '0');
+            document.getElementById('overall-timer').innerText = `${hours}:${minutes}:${seconds}`;
+        }, 1000);
+
+        function startQuestionTimer() {
+            if (qTimerInterval) clearInterval(qTimerInterval);
+            qTimerInterval = setInterval(() => {
+                timePerQuestion[currentIdx]++;
+                const minutes = String(Math.floor(timePerQuestion[currentIdx] / 60)).padStart(2, '0');
+                const seconds = String(timePerQuestion[currentIdx] % 60).padStart(2, '0');
+                document.getElementById('question-timer').innerText = `${minutes}:${seconds}`;
+            }, 1000);
+        }
+
+        // Initialize Matrix UI Panel
+        const matrixContainer = document.getElementById('matrix-container');
+        for (let i = 0; i < 45; i++) {
+            const btn = document.createElement('button');
+            btn.id = `matrix-btn-${i}`;
+            btn.className = "relative w-11 h-11 text-sm font-bold rounded flex items-center justify-center bg-slate-100 hover:bg-slate-200 border transition";
+            btn.innerHTML = `${i + 1}<span class="absolute top-1 right-1 w-1.5 h-1.5 bg-amber-500 rounded-full" id="badge-${i}"></span>`;
+            btn.onclick = () => selectQuestion(i);
+            matrixContainer.appendChild(btn);
+        }
+
+        // Setup Canvas Resolution handling
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            redrawStoredCanvas();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Canvas Drawing Operations
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+
+        canvas.addEventListener('touchstart', (e) => {
+            const t = e.touches[0];
+            startDrawing({ clientX: t.clientX, clientY: t.clientY });
+            e.preventDefault();
+        });
+        canvas.addEventListener('touchmove', (e) => {
+            const t = e.touches[0];
+            draw({ clientX: t.clientX, clientY: t.clientY });
+            e.preventDefault();
+        });
+        canvas.addEventListener('touchend', () => stopDrawing());
+
+        function startDrawing(e) {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            lastX = e.clientX - rect.left;
+            lastY = e.clientY - rect.top;
+            strokePoints = [{ x: lastX, y: lastY }];
+            
+            if (strokeTimer) clearTimeout(strokeTimer);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const currX = e.clientX - rect.left;
+            const currY = e.clientY - rect.top;
+
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(currX, currY);
+            
+            if (activeTool === 'pen') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = penColor;
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+            } else {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineWidth = 18;
+            }
+            ctx.stroke();
+
+            lastX = currX;
+            lastY = currY;
+            strokePoints.push({ x: currX, y: currY });
+
+            if (strokeTimer) clearTimeout(strokeTimer);
+            if (activeTool === 'pen') {
+                strokeTimer = setTimeout(() => {
+                    if (isDrawing && strokePoints.length > 2) {
+                        makeLineStraight();
+                    }
+                }, HOLD_THRESHOLD);
+            }
+        }
+
+        function stopDrawing() {
+            if (strokeTimer) clearTimeout(strokeTimer);
+            if (!isDrawing) return;
+            isDrawing = false;
+            saveCurrentCanvas();
+        }
+
+        function makeLineStraight() {
+            if (strokePoints.length < 2) return;
+            const startPt = strokePoints[0];
+            const endPt = strokePoints[strokePoints.length - 1];
+            
+            isDrawing = false;
+            if (strokeTimer) clearTimeout(strokeTimer);
+
+            const dataUrl = canvasPaths[questionsData[currentIdx].id];
+            if (dataUrl) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    drawStraightLine(startPt, endPt);
+                };
+                img.src = dataUrl;
+            } else {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawStraightLine(startPt, endPt);
+            }
+        }
+
+        function drawStraightLine(startPt, endPt) {
+            ctx.beginPath();
+            ctx.moveTo(startPt.x, startPt.y);
+            ctx.lineTo(endPt.x, endPt.y);
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.strokeStyle = penColor;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            saveCurrentCanvas();
+        }
+
+        // Color & Tool Selection Mechanics
+        function setPenColor(color) {
+            penColor = color;
+            setTool('pen');
+        }
+
+        function setTool(tool) {
+            activeTool = tool;
+            document.getElementById('tool-pen').className = tool === 'pen' ? "px-2.5 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-700 border border-blue-300 transition" : "px-2.5 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-700 border border-slate-300 transition";
+            document.getElementById('tool-eraser').className = tool === 'eraser' ? "px-2.5 py-1 text-xs font-semibold rounded bg-amber-100 text-amber-700 border border-amber-300 transition" : "px-2.5 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-700 border border-slate-300 transition";
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            saveCurrentCanvas();
+        }
+
+        function saveCurrentCanvas() {
+            canvasPaths[questionsData[currentIdx].id] = canvas.toDataURL();
+        }
+
+        function redrawStoredCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const dataUrl = canvasPaths[questionsData[currentIdx].id];
+            if (dataUrl) {
+                const img = new Image();
+                img.onload = () => ctx.drawImage(img, 0, 0);
+                img.src = dataUrl;
+            }
+        }
+
+        // Load & Show Selected Question
+        function selectQuestion(idx) {
+            currentIdx = idx;
+            const q = questionsData[currentIdx];
+
+            document.getElementById('current-q-num').innerText = q.id;
+            document.getElementById('question-text').innerHTML = q.text;
+
+            const figMount = document.getElementById('figure-mount');
+            if (q.hasFigure) {
+                figMount.innerHTML = q.figure;
+            } else {
+                figMount.innerHTML = `
+                    <div class="text-slate-300 flex flex-col items-center gap-2">
+                        <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                        <span class="text-sm font-semibold">Blank Working Sheet</span>
+                    </div>`;
+            }
+
+            // Options Renderer
+            const optionsContainer = document.getElementById('options-container');
+            optionsContainer.innerHTML = '';
+            
+            const prefixes = ["A", "B", "C", "D"];
+            q.options.forEach((opt, oIdx) => {
+                const isSelected = userAnswers[currentIdx] === oIdx;
+                const optBtn = document.createElement('button');
+                optBtn.onclick = () => selectOption(oIdx);
+                optBtn.className = `w-full min-h-[4rem] flex items-center p-3.5 rounded-xl border transition text-left ${isSelected ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200 hover:border-slate-300 bg-slate-50/20'}`;
+                optBtn.innerHTML = `
+                    <span class="w-7 h-7 shrink-0 rounded-full border border-slate-300 flex items-center justify-center font-bold font-mono text-sm mr-3 bg-white shadow-sm ${isSelected ? 'text-blue-600 border-blue-400' : 'text-slate-600'}">${prefixes[oIdx]}</span>
+                    <span class="text-slate-800 text-sm font-medium">${opt}</span>
+                `;
+                optionsContainer.appendChild(optBtn);
+            });
+
+            const unsureBtn = document.getElementById('opt-unsure');
+            if (userAnswers[currentIdx] === 4) {
+                unsureBtn.className = "w-full min-h-[4rem] flex items-center justify-between p-4 rounded-xl border border-amber-500 bg-amber-50/50 transition text-left";
+            } else {
+                unsureBtn.className = "w-full min-h-[4rem] flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/30 transition text-left";
+            }
+
+            // Sync matrix buttons visual state
+            document.querySelectorAll("[id^='matrix-btn-']").forEach((b, bIdx) => {
+                b.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-100', 'border-blue-400');
+                if (bIdx === currentIdx) b.classList.add('ring-2', 'ring-blue-500', 'border-blue-400');
+            });
+
+            if (isReviewed) {
+                document.getElementById('btn-done').classList.add('hidden');
+                if (currentIdx === 44) {
+                    document.getElementById('btn-next').classList.add('hidden');
+                } else {
+                    document.getElementById('btn-next').classList.remove('hidden');
+                }
+            } else {
+                if (currentIdx === 44) {
+                    document.getElementById('btn-next').classList.add('hidden');
+                    document.getElementById('btn-done').classList.remove('hidden');
+                } else {
+                    document.getElementById('btn-next').classList.remove('hidden');
+                    document.getElementById('btn-done').classList.add('hidden');
+                }
+            }
+
+            const solContainer = document.getElementById('solution-container');
+            if (isReviewed) {
+                solContainer.classList.remove('hidden');
+                document.getElementById('solution-text').innerHTML = q.solution;
+            } else {
+                solContainer.classList.add('hidden');
+            }
+
+            if (window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise();
+            }
+
+            setTimeout(() => {
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                redrawStoredCanvas();
+            }, 50);
+
+            startQuestionTimer();
+        }
+
+        function selectOption(oIdx) {
+            if (isReviewed) return; 
+            userAnswers[currentIdx] = oIdx;
+            document.getElementById(`badge-${currentIdx}`).classList.add('hidden');
+            selectQuestion(currentIdx);
+        }
+
+        function navigateQuestion(step) {
+            const nextIdx = currentIdx + step;
+            if (nextIdx >= 0 && nextIdx < 45) {
+                selectQuestion(nextIdx);
+            }
+        }
+
+        function finishTest() {
+            const unanswered = userAnswers.map((ans, idx) => ans === null ? idx + 1 : null).filter(val => val !== null);
+            if (unanswered.length > 0) {
+                const confirmFinish = confirm(`⚠️ You have not yet finished all questions.\n\nRemaining: ${unanswered.join(', ')}\n\nDo you still want to grade and complete the paper? (Unfinished questions will be marked as incorrect)`);
+                if (!confirmFinish) return;
+            } else {
+                alert("You have done the whole paper!");
+            }
+            
+            clearInterval(qTimerInterval);
+            isReviewed = true;
+            gradeTest();
+        }
+
+        function gradeTest() {
+            for (let i = 0; i < 45; i++) {
+                const btn = document.getElementById(`matrix-btn-${i}`);
+                const userAns = userAnswers[i];
+                const correctAns = questionsData[i].answer;
+
+                btn.className = "relative w-11 h-11 text-sm font-bold rounded flex items-center justify-center border transition text-white shadow-sm ";
+                if (userAns === 4) {
+                    btn.classList.add('bg-amber-400', 'border-amber-500'); 
+                } else if (userAns === correctAns) {
+                    btn.classList.add('bg-emerald-500', 'border-emerald-600'); 
+                } else {
+                    btn.classList.add('bg-rose-500', 'border-rose-600'); 
+                }
+            }
+
+            alert("🎉 Paper Graded Successfully! You can now switch between questions to review detailed solutions and inspect your drawn workflows.");
+            selectQuestion(currentIdx);
+            document.getElementById('btn-show-report').classList.remove('hidden');
+        }
+
+        // Render On-Screen Report
+        function renderReportPage() {
+            document.getElementById('report-date').innerText = new Date().toLocaleString();
+            
+            let correctCount = 0;
+            let wrongCount = 0;
+            let unsureCount = 0;
+
+            const tBody = document.getElementById('report-table-body');
+            tBody.innerHTML = '';
+
+            questionsData.forEach((q, idx) => {
+                const uAns = userAnswers[idx];
+                const isCorrect = uAns === q.answer;
+                const timeStr = `${Math.floor(timePerQuestion[idx] / 60)}m ${timePerQuestion[idx] % 60}s`;
+
+                let stateLabel = "";
+                let rowBg = "";
+                const prefixes = ["A", "B", "C", "D"];
+
+                if (uAns === 4) {
+                    unsureCount++;
+                    stateLabel = `<span class="px-2 py-1 bg-amber-100 text-amber-800 rounded font-bold text-xs uppercase">Unsure</span>`;
+                    rowBg = "bg-amber-50/20";
+                } else if (isCorrect) {
+                    correctCount++;
+                    stateLabel = `<span class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-xs uppercase">Correct</span>`;
+                    rowBg = "bg-emerald-50/10";
+                } else {
+                    wrongCount++;
+                    stateLabel = `<span class="px-2 py-1 bg-rose-100 text-rose-800 rounded font-bold text-xs uppercase">Wrong</span>`;
+                    rowBg = "bg-rose-50/10";
+                }
+
+                const uLabel = uAns === 4 ? "Unsure" : (uAns !== null ? prefixes[uAns] : "Skipped");
+                const cLabel = prefixes[q.answer];
+
+                const row = document.createElement('tr');
+                row.className = `border-b border-slate-100 ${rowBg}`;
+                row.innerHTML = `
+                    <td class="p-3 font-bold text-slate-800">Q${q.id}</td>
+                    <td class="p-3 font-semibold text-slate-600">${uLabel}</td>
+                    <td class="p-3 font-bold text-emerald-600">${cLabel}</td>
+                    <td class="p-3">${stateLabel}</td>
+                    <td class="p-3 text-right text-xs font-mono text-slate-500">${timeStr}</td>
+                `;
+                tBody.appendChild(row);
+            });
+
+            const correctPct = Math.round((correctCount / 45) * 100);
+            const wrongPct = Math.round((wrongCount / 45) * 100);
+            const unsurePct = Math.round((unsureCount / 45) * 100);
+
+            document.getElementById('rep-correct').innerText = `${correctCount} (${correctPct}%)`;
+            document.getElementById('rep-wrong').innerText = `${wrongCount} (${wrongPct}%)`;
+            document.getElementById('rep-unsure').innerText = `${unsureCount} (${unsurePct}%)`;
+
+            const hours = String(Math.floor(overallSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((overallSeconds % 3600) / 60)).padStart(2, '0');
+            const seconds = String(overallSeconds % 60).padStart(2, '0');
+            document.getElementById('rep-total-time').innerText = `${hours}:${minutes}:${seconds}`;
+
+            document.getElementById('report-modal').classList.remove('hidden');
+        }
+
+        // Close report dashboard
+        function closeReport() {
+            document.getElementById('report-modal').classList.add('hidden');
+        }
+
+        // COMPLETE PDF GENERATION CONTROLLER (Structured for exactly 3 pages, 15 items per page)
+        // STABILIZED DUAL-DEVICE PDF CONTROLLER
+        // COMPLETE PDF GENERATION CONTROLLER (Structured for exactly 3 pages, 15 items per page)
+        // STABILIZED DUAL-DEVICE PDF CONTROLLER
+        function downloadPDF() {
+            const element = document.createElement('div');
+            element.className = "bg-white text-slate-800 p-6";
+            element.style.width = "790px"; 
+            element.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+
+            let correctCount = 0;
+            let wrongCount = 0;
+            let unsureCount = 0;
+            
+            userAnswers.forEach((ans, idx) => {
+                if (ans === 4) unsureCount++;
+                else if (ans !== null && ans === questionsData[idx].answer) correctCount++;
+                else wrongCount++;
+            });
+            
+            const correctPct = Math.round((correctCount / 45) * 100);
+            const wrongPct = Math.round((wrongCount / 45) * 100);
+            const unsurePct = Math.round((unsureCount / 45) * 100);
+            
+            const totalHours = String(Math.floor(overallSeconds / 3600)).padStart(2, '0');
+            const totalMinutes = String(Math.floor((overallSeconds % 3600) / 60)).padStart(2, '0');
+            const totalSecs = String(overallSeconds % 60).padStart(2, '0');
+            const totalTimeStr = `${totalHours}:${totalMinutes}:${totalSecs}`;
+            const dateStr = new Date().toLocaleString();
+
+            function getRowHtml(idx) {
+                const q = questionsData[idx];
+                const uAns = userAnswers[idx];
+                const isCorrect = uAns === q.answer;
+                const timeStr = `${Math.floor(timePerQuestion[idx] / 60)}m ${timePerQuestion[idx] % 60}s`;
+                const prefixes = ["A", "B", "C", "D"];
+                
+                let stateText = "", stateColor = "", stateBg = "";
+                if (uAns === 4) {
+                    stateText = "Unsure"; stateColor = "#b45309"; stateBg = "#fef3c7";
+                } else if (isCorrect) {
+                    stateText = "Correct"; stateColor = "#047857"; stateBg = "#d1fae5";
+                } else {
+                    stateText = "Wrong"; stateColor = "#be123c"; stateBg = "#ffe4e6";
+                }
+
+                const uLabel = uAns === 4 ? "Unsure" : (uAns !== null ? prefixes[uAns] : "Skipped");
+                const cLabel = prefixes[q.answer];
+
+                return `
+                    <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+                        <td style="padding: 8px 10px; font-weight: bold; color: #1e293b; width: 15%;">Q${q.id}</td>
+                        <td style="padding: 8px 10px; font-weight: 600; color: #475569; width: 20%;">${uLabel}</td>
+                        <td style="padding: 8px 10px; font-weight: bold; color: #047857; width: 20%;">${cLabel}</td>
+                        <td style="padding: 8px 10px; width: 25%;">
+                            <span style="display: inline-block; padding: 3px 8px; font-size: 10px; font-weight: bold; border-radius: 4px; color: ${stateColor}; background-color: ${stateBg}; text-transform: uppercase;">
+                                ${stateText}
+                            </span>
+                        </td>
+                        <td style="padding: 8px 10px; text-align: right; font-family: monospace; color: #64748b; width: 20%;">${timeStr}</td>
+                    </tr>
+                `;
+            }
+
+            let rowsPage1 = "";
+            for (let i = 0; i < 15; i++) rowsPage1 += getRowHtml(i);
+
+            let rowsPage2 = "";
+            for (let i = 15; i < 30; i++) rowsPage2 += getRowHtml(i);
+
+            let rowsPage3 = "";
+            for (let i = 30; i < 45; i++) rowsPage3 += getRowHtml(i);
+
+            const tableHeader = `
+                <thead>
+                    <tr style="background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; text-align: left; font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase;">
+                        <th style="padding: 8px 10px;">Question</th>
+                        <th style="padding: 8px 10px;">My Option</th>
+                        <th style="padding: 8px 10px;">Correct Option</th>
+                        <th style="padding: 8px 10px;">Status</th>
+                        <th style="padding: 8px 10px; text-align: right;">Time Used</th>
+                    </tr>
+                </thead>
+            `;
+
+            element.innerHTML = `
+                <!-- PAGE 1 OF 3 -->
+                <div style="page-break-after: always; min-height: 1030px; box-sizing: border-box; padding-bottom: 20px;">
+                    <div style="border-bottom: 3px solid #1e293b; padding-bottom: 10px; margin-bottom: 20px;">
+                        <h2 style="font-size: 26px; font-weight: 800; color: #1e293b; margin: 0;">HKDSE 2024 Paper 2</h2>
+                        <p style="font-size: 12px; color: #64748b; margin: 4px 0 0 0;">Performance Report &bull; Generated: ${dateStr}</p>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                        <tr>
+                            <td style="width: 25%; padding-right: 8px;">
+                                <div style="background-color: #d1fae5; border: 1px solid #a7f3d0; padding: 14px; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 10px; font-weight: 700; color: #065f46; text-transform: uppercase;">Correct</span>
+                                    <h3 style="font-size: 18px; font-weight: 800; color: #065f46; margin: 4px 0 0 0;">${correctCount} (${correctPct}%)</h3>
+                                </div>
+                            </td>
+                            <td style="width: 25%; padding: 0 4px 0 4px;">
+                                <div style="background-color: #ffe4e6; border: 1px solid #fecdd3; padding: 14px; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 10px; font-weight: 700; color: #9f1239; text-transform: uppercase;">Wrong</span>
+                                    <h3 style="font-size: 18px; font-weight: 800; color: #9f1239; margin: 4px 0 0 0;">${wrongCount} (${wrongPct}%)</h3>
+                                </div>
+                            </td>
+                            <td style="width: 25%; padding: 0 4px 0 4px;">
+                                <div style="background-color: #fef3c7; border: 1px solid #fde68a; padding: 14px; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase;">Unsure</span>
+                                    <h3 style="font-size: 18px; font-weight: 800; color: #92400e; margin: 4px 0 0 0;">${unsureCount} (${unsurePct}%)</h3>
+                                </div>
+                            </td>
+                            <td style="width: 25%; padding-left: 8px;">
+                                <div style="background-color: #f1f5f9; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 10px; font-weight: 700; color: #334155; text-transform: uppercase;">Total Time</span>
+                                    <h3 style="font-size: 18px; font-weight: 800; color: #334155; margin: 4px 0 0 0;">${totalTimeStr}</h3>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <table style="width: 100%; border-collapse: collapse;">
+                        ${tableHeader}
+                        <tbody>${rowsPage1}</tbody>
+                    </table>
+                    <p style="text-align: center; color: #94a3b8; font-size: 11px; margin-top: 40px;">Page 1 of 3</p>
+                </div>
+
+                <!-- PAGE 2 OF 3 -->
+                <div style="page-break-after: always; min-height: 1030px; box-sizing: border-box; padding-top: 10px; padding-bottom: 20px;">
+                    <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 14px; font-weight: 800; color: #475569;">HKDSE 2024 Paper 2 &bull; Evaluation Summary</span>
+                        <span style="font-size: 11px; color: #94a3b8;">Timestamp: ${dateStr}</span>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        ${tableHeader}
+                        <tbody>${rowsPage2}</tbody>
+                    </table>
+                    <p style="text-align: center; color: #94a3b8; font-size: 11px; margin-top: 40px;">Page 2 of 3</p>
+                </div>
+
+                <!-- PAGE 3 OF 3 -->
+                <div style="min-height: 1030px; box-sizing: border-box; padding-top: 10px; padding-bottom: 20px;">
+                    <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 14px; font-weight: 800; color: #475569;">HKDSE 2024 Paper 2 &bull; Evaluation Summary</span>
+                        <span style="font-size: 11px; color: #94a3b8;">Timestamp: ${dateStr}</span>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        ${tableHeader}
+                        <tbody>${rowsPage3}</tbody>
+                    </table>
+                    <p style="text-align: center; color: #94a3b8; font-size: 11px; margin-top: 40px;">Page 3 of 3</p>
+                </div>
+            `;
+
+            const opt = {
+                margin: 0,
+                filename: 'HKDSE_2024_Paper2_Report.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // Fire initial setup to load Question 1 dynamically on browser launch
+        selectQuestion(0);
+    </script>
+</body>
+</html>
