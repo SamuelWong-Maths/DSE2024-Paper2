@@ -25,7 +25,13 @@
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
     
     <!-- html2pdf.js for generating the PDF report -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Explicit libraries required by the iPad-safe PDF generator -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<!-- Keep this because the rest of your app may still use it -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
         /* Transparent interactive canvas layer over figure/workspaces */
@@ -800,7 +806,7 @@ function closeReport() {
 
 // COMPLETE PDF GENERATION CONTROLLER (Structured for exactly 3 pages, 15 items per page)
 // STABILIZED DUAL-DEVICE & IPAD / WEBKIT COMPATIBLE PDF CONTROLLER
-function downloadPDF() {
+async function downloadPDF() {
     const element = document.createElement('div');
 
     /*
@@ -1060,43 +1066,114 @@ function downloadPDF() {
             ${getQuestionTable(36, 44)}
         `, true)}
     `;
+    /*
+  html2canvas is much more reliable when the generated report is
+  temporarily present in the live document layout.
 
-    const pdfOptions = {
-        margin: 0,
-        filename: 'HKDSE_2024_Paper2_Report.pdf',
+  It is positioned far off-screen, so users never see it.
+*/
+element.style.position = 'fixed';
+element.style.left = '-10000px';
+element.style.top = '0';
+element.style.zIndex = '-1';
+element.style.pointerEvents = 'none';
 
-        image: {
-            type: 'jpeg',
-            quality: 0.98
-        },
+document.body.appendChild(element);
 
-        html2canvas: {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff'
-        },
+// Allow Safari, Chrome, and iPad Safari time to calculate table layout.
+await new Promise(resolve => requestAnimationFrame(() => {
+    requestAnimationFrame(resolve);
+}));
 
-        pagebreak: {
-            mode: ['css', 'legacy']
-        },
+ const pages = Array.from(element.querySelectorAll('.pdf-page'));
+
+if (pages.length !== 4) {
+    element.remove();
+    alert('The report could not be prepared correctly. Please try again.');
+    return;
+}
+
+const jsPDF = window.jspdf && window.jspdf.jsPDF;
+const html2canvasRenderer = window.html2canvas;
+
+if (!jsPDF || !html2canvasRenderer) {
+    element.remove();
+    alert('PDF tools are still loading. Please wait a moment and try again.');
+    return;
+}
+
+const pdf = new jsPDF({
+    unit: 'px',
+    format: [760, 1075],
+    orientation: 'portrait',
+    compress: true
+});
+
+try {
+    for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+        const reportPage = pages[pageIndex];
 
         /*
-          Critical: the PDF uses the same 760 × 1075 px dimensions
-          as .pdf-page above. This prevents html2pdf from splitting
-          each intended page into multiple physical PDF pages.
+          One page is captured at a time. This avoids Safari/WebKit
+          cutting off or omitting questions from later report pages.
         */
-        jsPDF: {
-            unit: 'px',
-            format: [760, 1075],
-            orientation: 'portrait'
-        }
-    };
+        const renderedCanvas = await html2canvasRenderer(reportPage, {
+            scale: 1.15,
+            backgroundColor: '#ffffff',
+            useCORS: true,
+            logging: false,
+            width: 760,
+            height: 1075,
+            windowWidth: 760,
+            windowHeight: 1075,
+            scrollX: 0,
+            scrollY: 0
+        });
 
-    html2pdf()
-        .set(pdfOptions)
-        .from(element)
-        .save();
+        const imageData = renderedCanvas.toDataURL('image/jpeg', 0.90);
+
+        if (pageIndex > 0) {
+            pdf.addPage([760, 1075], 'portrait');
+        }
+
+        pdf.addImage(
+            imageData,
+            'JPEG',
+            0,
+            0,
+            760,
+            1075,
+            undefined,
+            'FAST'
+        );
+
+        // Release temporary canvas memory before rendering the next page.
+        renderedCanvas.width = 1;
+        renderedCanvas.height = 1;
+
+        // Particularly useful on iPads.
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    pdf.save('HKDSE_2024_Paper2_Report.pdf');
+
+} catch (error) {
+    console.error('PDF generation failed:', error);
+
+    /*
+      Show the actual browser error while testing.
+      This is much more helpful than a generic message.
+    */
+    alert(
+        'Unable to generate the PDF report.\n\n' +
+        'Technical detail: ' +
+        (error && error.message ? error.message : String(error))
+    );
+
+} finally {
+    // Always remove the off-screen report after export or failure.
+    element.remove();
+}
 }
 
 // Fire initial setup to load Question 1 dynamically on browser launch
