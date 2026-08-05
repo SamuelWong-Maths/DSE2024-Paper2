@@ -346,7 +346,7 @@
             { id: 45, classification: "", text: "If the variance of the seven numbers $x_1, x_2, x_3, x_4, x_5, x_6$ and $x_7$ is 16, then the standard deviation of the seven numbers $9x_1 - 5, 9x_2 - 5, 9x_3 - 5, 9x_4 - 5, 9x_5 - 5, 9x_6 - 5$ and $9x_7 - 5$ is", hasFigure: false, options: ["$31$", "$36$", "$139$", "$144$"], answer: 1, solution: "Let the original standard deviation be $\\sigma_x = \\sqrt{\\text{Variance}} = \\sqrt{16} = 4$.<br><br>Under a linear transformation of the form $y = ax + b$:<br>1. Subtracting a constant ($b = -5$) shifts the central location but does not alter measures of dispersion.<br>2. Multiplying by a constant ($a = 9$) scales the standard deviation by its absolute value $|a|$:<br>$$\\sigma_y = |a| \\cdot \\sigma_x = 9 \\times 4 = 36$$" }
         ];
 
-        const classifications = {
+       const classifications = {
             1: "J03: Factorize and Expand",
             2: "J01: Index",
             3: "J02: Subject",
@@ -405,6 +405,7 @@
         let timePerQuestion = Array(45).fill(0); 
         let overallSeconds = 0;
         let qTimerInterval = null;
+        let overallTimerInterval = null;
 
         // Drawing state elements
         const canvas = document.getElementById('drawing-canvas');
@@ -422,7 +423,7 @@
         const HOLD_THRESHOLD = 500; 
 
         // Initialize timers
-        setInterval(() => {
+        overallTimerInterval = setInterval(() => {
             overallSeconds++;
             const hours = String(Math.floor(overallSeconds / 3600)).padStart(2, '0');
             const minutes = String(Math.floor((overallSeconds % 3600) / 60)).padStart(2, '0');
@@ -430,13 +431,28 @@
             document.getElementById('overall-timer').innerText = `${hours}:${minutes}:${seconds}`;
         }, 1000);
 
+        function updateQuestionTimerDisplay() {
+            const minutes = String(Math.floor(timePerQuestion[currentIdx] / 60)).padStart(2, '0');
+            const seconds = String(timePerQuestion[currentIdx] % 60).padStart(2, '0');
+            document.getElementById('question-timer').innerText = `${minutes}:${seconds}`;
+        }
+
         function startQuestionTimer() {
+            if (isReviewed) return;
+
             if (qTimerInterval) clearInterval(qTimerInterval);
+
+            updateQuestionTimerDisplay();
+
             qTimerInterval = setInterval(() => {
+                if (isReviewed) {
+                    clearInterval(qTimerInterval);
+                    qTimerInterval = null;
+                    return;
+                }
+
                 timePerQuestion[currentIdx]++;
-                const minutes = String(Math.floor(timePerQuestion[currentIdx] / 60)).padStart(2, '0');
-                const seconds = String(timePerQuestion[currentIdx] % 60).padStart(2, '0');
-                document.getElementById('question-timer').innerText = `${minutes}:${seconds}`;
+                updateQuestionTimerDisplay();
             }, 1000);
         }
 
@@ -680,7 +696,11 @@ if (q.hasFigure) {
                 redrawStoredCanvas();
             }, 50);
 
-            startQuestionTimer();
+            updateQuestionTimerDisplay();
+
+            if (!isReviewed) {
+                startQuestionTimer();
+            }
         }
 
         function selectOption(oIdx) {
@@ -706,8 +726,14 @@ if (q.hasFigure) {
                 alert("You have done the whole paper!");
             }
             
-            clearInterval(qTimerInterval);
             isReviewed = true;
+
+            clearInterval(qTimerInterval);
+            clearInterval(overallTimerInterval);
+
+            qTimerInterval = null;
+            overallTimerInterval = null;
+
             gradeTest();
         }
 
