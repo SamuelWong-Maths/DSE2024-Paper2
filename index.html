@@ -50,7 +50,7 @@
     <!-- Header Section -->
     <header class="bg-slate-800 text-white shadow-md px-6 py-4 flex flex-wrap justify-between items-center gap-4">
         <div>
-            <h1 class="text-xl font-bold tracking-wide">HKDSE 2024 Paper 2</h1>
+            <h1 class="text-xl font-bold tracking-wide">HKDSE 2026 Paper 2</h1>
         </div>
         <div class="flex gap-6 text-sm font-semibold">
             <div class="bg-slate-700 px-3 py-2 rounded shadow-inner">
@@ -238,11 +238,11 @@
         <div id="report-document" class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-8 my-8 relative report-page">
             <div class="flex justify-between items-start border-b pb-6 mb-6">
                 <div>
-                    <h2 class="text-3xl font-extrabold text-slate-800">HKDSE 2024 Paper 2</h2>
+                    <h2 class="text-3xl font-extrabold text-slate-800">HKDSE 2026 Paper 2</h2>
                     <p class="text-slate-500 text-sm mt-1">Generated on: <span id="report-date"></span></p>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="downloadPDF()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow">
+                    <button id="downloadButton" type="button" onclick="downloadPDF()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow">
                         📥 Download PDF Report
                     </button>
                     <button onclick="closeReport()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg text-sm">
@@ -830,9 +830,92 @@ function closeReport() {
     document.getElementById('report-modal').classList.add('hidden');
 }
 
+
+
+
+
+
+
+async function saveOrSharePdf(pdf) {
+    const filename = 'HKDSE_2026_Paper2_Report.pdf';
+
+    const pdfBlob = pdf.output('blob');
+    const pdfFile = new File([pdfBlob], filename, {
+        type: 'application/pdf'
+    });
+
+    if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({
+            title: 'HKDSE 2026 Paper 2 Report',
+            files: [pdfFile]
+        });
+
+        return true;
+    }
+
+    return false;
+}
+
+
+function isIPadDevice() {
+    return /iPad/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+
+let preparedPdfBlob = null;
+let preparedPdfFilename = 'HKDSE_2026_Paper2_Report.pdf';
+
+
+async function sharePreparedReport() {
+    if (!preparedPdfBlob) {
+        return false;
+    }
+
+    const pdfFile = new File(
+        [preparedPdfBlob],
+        preparedPdfFilename,
+        { type: 'application/pdf' }
+    );
+
+    if (!navigator.canShare || !navigator.canShare({ files: [pdfFile] })) {
+        alert('Your iPad does not support sharing this PDF. Please try again in Safari.');
+        return false;
+    }
+
+    try {
+        // This should run directly when the user taps the button.
+        await navigator.share({
+            title: 'HKDSE 2026 Paper 2 Report',
+            files: [pdfFile]
+        });
+
+        return true;
+    } catch (error) {
+        // User cancelling the Share Sheet is normal.
+        if (error.name !== 'AbortError') {
+            console.error('Unable to share PDF:', error);
+            alert('Unable to open the save/share menu. Please try again.');
+        }
+
+        return false;
+    }
+}
+
+
+
+
 // COMPLETE PDF GENERATION CONTROLLER (Structured for exactly 3 pages, 15 items per page)
 // STABILIZED DUAL-DEVICE & IPAD / WEBKIT COMPATIBLE PDF CONTROLLER
 async function downloadPDF() {
+    if (isIPadDevice() && preparedPdfBlob) {
+        await sharePreparedReport();
+        return;
+    }
+
+    const filename = 'HKDSE_2026_Paper2_Report.pdf';
+
+
     const element = document.createElement('div');
 
     /*
@@ -993,7 +1076,7 @@ async function downloadPDF() {
             ">
                 <div>
                     <div style="font-size:18px; font-weight:800; color:#1e293b;">
-                        HKDSE 2024 Paper 2
+                        HKDSE 2026 Paper 2
                     </div>
                     <div style="font-size:10px; color:#64748b; margin-top:3px;">
                         Performance report · Generated ${dateText}
@@ -1135,71 +1218,79 @@ const pdf = new jsPDF({
     compress: true
 });
 
-try {
-    for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
-        const reportPage = pages[pageIndex];
+ try {
+        for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+            const reportPage = pages[pageIndex];
 
-        /*
-          One page is captured at a time. This avoids Safari/WebKit
-          cutting off or omitting questions from later report pages.
-        */
-        const renderedCanvas = await html2canvasRenderer(reportPage, {
-            scale: 1.15,
-            backgroundColor: '#ffffff',
-            useCORS: true,
-            logging: false,
-            width: 760,
-            height: 1075,
-            windowWidth: 760,
-            windowHeight: 1075,
-            scrollX: 0,
-            scrollY: 0
-        });
+            const renderedCanvas = await html2canvasRenderer(reportPage, {
+                scale: 1.15,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                logging: false,
+                width: 760,
+                height: 1075,
+                windowWidth: 760,
+                windowHeight: 1075,
+                scrollX: 0,
+                scrollY: 0
+            });
 
-        const imageData = renderedCanvas.toDataURL('image/jpeg', 0.90);
+            const imageData = renderedCanvas.toDataURL('image/jpeg', 0.90);
 
-        if (pageIndex > 0) {
-            pdf.addPage([760, 1075], 'portrait');
+            if (pageIndex > 0) {
+                pdf.addPage([760, 1075], 'portrait');
+            }
+
+            pdf.addImage(
+                imageData,
+                'JPEG',
+                0,
+                0,
+                760,
+                1075,
+                undefined,
+                'FAST'
+            );
+
+            renderedCanvas.width = 1;
+            renderedCanvas.height = 1;
+
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
 
-        pdf.addImage(
-            imageData,
-            'JPEG',
-            0,
-            0,
-            760,
-            1075,
-            undefined,
-            'FAST'
+        if (isIPadDevice()) {
+            preparedPdfBlob = pdf.output('blob');
+            preparedPdfFilename = filename;
+
+            const downloadButton = document.getElementById('downloadButton');
+
+            if (downloadButton) {
+                downloadButton.textContent = 'Save / Share report';
+            }
+
+            alert(
+                'Your report is ready.\n\n' +
+                'Tap “Save / Share report” once more to save or share it ' +
+                'without leaving this summary page.'
+            );
+
+            return;
+        }
+
+        // Desktop/laptop download
+        pdf.save(filename);
+
+    } catch (error) {
+        console.error('PDF generation failed:', error);
+
+        alert(
+            'Unable to generate the PDF report.\n\n' +
+            'Technical detail: ' +
+            (error && error.message ? error.message : String(error))
         );
-
-        // Release temporary canvas memory before rendering the next page.
-        renderedCanvas.width = 1;
-        renderedCanvas.height = 1;
-
-        // Particularly useful on iPads.
-        await new Promise(resolve => setTimeout(resolve, 100));
+    } finally {
+        element.remove();
     }
-
-    pdf.save('HKDSE_2024_Paper2_Report.pdf');
-
-} catch (error) {
-    console.error('PDF generation failed:', error);
-
-    /*
-      Show the actual browser error while testing.
-      This is much more helpful than a generic message.
-    */
-    alert(
-        'Unable to generate the PDF report.\n\n' +
-        'Technical detail: ' +
-        (error && error.message ? error.message : String(error))
-    );
-
-} finally {
-    // Always remove the off-screen report after export or failure.
-    element.remove();
-}
 }
 
 // Fire initial setup to load Question 1 dynamically on browser launch
