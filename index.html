@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mathematics Past Paper WebApp</title>
+    <title>Mathematics Past Paper 2024 MC</title>
     
     <!-- Tailwind CSS for modern, clean UI layout -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -50,7 +50,7 @@
     <!-- Header Section -->
     <header class="bg-slate-800 text-white shadow-md px-6 py-4 flex flex-wrap justify-between items-center gap-4">
         <div>
-            <h1 class="text-xl font-bold tracking-wide">HKDSE 2026 Paper 2</h1>
+            <h1 class="text-xl font-bold tracking-wide">HKDSE 2024 Paper 2</h1>
         </div>
         <div class="flex gap-6 text-sm font-semibold">
             <div class="bg-slate-700 px-3 py-2 rounded shadow-inner">
@@ -238,7 +238,7 @@
         <div id="report-document" class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-8 my-8 relative report-page">
             <div class="flex justify-between items-start border-b pb-6 mb-6">
                 <div>
-                    <h2 class="text-3xl font-extrabold text-slate-800">HKDSE 2026 Paper 2</h2>
+                    <h2 class="text-3xl font-extrabold text-slate-800">HKDSE 2024 Paper 2</h2>
                     <p class="text-slate-500 text-sm mt-1">Generated on: <span id="report-date"></span></p>
                 </div>
                 <div class="flex gap-2">
@@ -837,7 +837,7 @@ function closeReport() {
 
 
 async function saveOrSharePdf(pdf) {
-    const filename = 'HKDSE_2026_Paper2_Report.pdf';
+    const filename = 'HKDSE_2024_Paper2_Report.pdf';
 
     const pdfBlob = pdf.output('blob');
     const pdfFile = new File([pdfBlob], filename, {
@@ -846,7 +846,7 @@ async function saveOrSharePdf(pdf) {
 
     if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         await navigator.share({
-            title: 'HKDSE 2026 Paper 2 Report',
+            title: 'HKDSE 2024 Paper 2 Report',
             files: [pdfFile]
         });
 
@@ -864,7 +864,7 @@ function isIPadDevice() {
 
 
 let preparedPdfBlob = null;
-let preparedPdfFilename = 'HKDSE_2026_Paper2_Report.pdf';
+let preparedPdfFilename = 'HKDSE_2024_Paper2_Report.pdf';
 
 
 async function sharePreparedReport() {
@@ -886,7 +886,7 @@ async function sharePreparedReport() {
     try {
         // This should run directly when the user taps the button.
         await navigator.share({
-            title: 'HKDSE 2026 Paper 2 Report',
+            title: 'HKDSE 2024 Paper 2 Report',
             files: [pdfFile]
         });
 
@@ -913,7 +913,7 @@ async function downloadPDF() {
         return;
     }
 
-    const filename = 'HKDSE_2026_Paper2_Report.pdf';
+    const filename = 'HKDSE_2024_Paper2_Report.pdf';
 
 
     const element = document.createElement('div');
@@ -1076,7 +1076,7 @@ async function downloadPDF() {
             ">
                 <div>
                     <div style="font-size:18px; font-weight:800; color:#1e293b;">
-                        HKDSE 2026 Paper 2
+                        HKDSE 2024 Paper 2
                     </div>
                     <div style="font-size:10px; color:#64748b; margin-top:3px;">
                         Performance report · Generated ${dateText}
