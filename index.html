@@ -29,9 +29,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-<!-- Keep this because the rest of your app may still use it -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
         /* Transparent interactive canvas layer over figure/workspaces */
@@ -46,6 +43,78 @@
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col tex2jax_process">
+    <!-- Student Information Start Page -->
+    <div id="student-info-screen"
+        class="fixed inset-0 z-[100] bg-slate-100 flex items-center justify-center p-5">
+
+        <div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-7 sm:p-9">
+            <div class="text-center mb-8">
+                <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center text-2xl">
+                    ✏️
+                </div>
+
+                <h2 class="text-2xl font-extrabold text-slate-800">
+                    HKDSE 2024 Paper 2
+                </h2>
+
+                <p class="text-sm text-slate-500 mt-2">
+                    Please enter your information before starting the paper.
+                </p>
+            </div>
+
+            <form id="student-info-form" class="space-y-5">
+                <div>
+                    <label for="student-name" class="block text-sm font-bold text-slate-700 mb-2">
+                        Name
+                    </label>
+                    <input
+                        id="student-name"
+                        type="text"
+                        autocomplete="name"
+                        placeholder="Enter your name"
+                        class="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                    >
+                </div>
+
+                <div>
+                    <label for="student-class" class="block text-sm font-bold text-slate-700 mb-2">
+                        Class
+                    </label>
+                    <input
+                        id="student-class"
+                        type="text"
+                        placeholder="For example: 6A"
+                        class="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                    >
+                </div>
+
+                <div>
+                    <label for="student-class-number" class="block text-sm font-bold text-slate-700 mb-2">
+                        Class Number
+                    </label>
+                    <input
+                        id="student-class-number"
+                        type="text"
+                        inputmode="numeric"
+                        placeholder="For example: 12"
+                        class="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                    >
+                </div>
+
+                <button
+                    id="enter-paper-button"
+                    type="submit"
+                    disabled
+                    class="w-full py-3.5 rounded-xl bg-slate-300 text-white font-bold transition cursor-not-allowed"
+                >
+                    Enter
+                </button>
+            </form>
+        </div>
+    </div>
 
     <!-- Header Section -->
     <header class="bg-slate-800 text-white shadow-md px-6 py-4 flex flex-wrap justify-between items-center gap-4">
@@ -240,6 +309,22 @@
                 <div>
                     <h2 class="text-3xl font-extrabold text-slate-800">HKDSE 2024 Paper 2</h2>
                     <p class="text-slate-500 text-sm mt-1">Generated on: <span id="report-date"></span></p>
+                    <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                            <span class="block text-xs uppercase font-bold text-slate-400">Name</span>
+                            <span id="report-student-name" class="font-bold text-slate-700"></span>
+                        </div>
+
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                            <span class="block text-xs uppercase font-bold text-slate-400">Class</span>
+                            <span id="report-student-class" class="font-bold text-slate-700"></span>
+                        </div>
+
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                            <span class="block text-xs uppercase font-bold text-slate-400">Class Number</span>
+                            <span id="report-student-class-number" class="font-bold text-slate-700"></span>
+                        </div>
+                    </div>
                 </div>
                 <div class="flex gap-2">
                     <button id="downloadButton" type="button" onclick="downloadPDF()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow">
@@ -401,11 +486,16 @@
         // State Tracking variables
         let currentIdx = 0;
         let isReviewed = false;
-        let userAnswers = Array(45).fill(null); 
-        let timePerQuestion = Array(45).fill(0); 
+        let userAnswers = Array(45).fill(null);
+        let timePerQuestion = Array(45).fill(0);
         let overallSeconds = 0;
         let qTimerInterval = null;
         let overallTimerInterval = null;
+
+        // Student details entered before the paper begins
+        let studentName = '';
+        let studentClass = '';
+        let studentClassNumber = '';
 
         // Drawing state elements
         const canvas = document.getElementById('drawing-canvas');
@@ -422,14 +512,22 @@
         let strokeTimer = null;
         const HOLD_THRESHOLD = 500; 
 
-        // Initialize timers
-        overallTimerInterval = setInterval(() => {
-            overallSeconds++;
-            const hours = String(Math.floor(overallSeconds / 3600)).padStart(2, '0');
-            const minutes = String(Math.floor((overallSeconds % 3600) / 60)).padStart(2, '0');
-            const seconds = String(overallSeconds % 60).padStart(2, '0');
-            document.getElementById('overall-timer').innerText = `${hours}:${minutes}:${seconds}`;
-        }, 1000);
+        function startOverallTimer() {
+            if (overallTimerInterval) {
+                clearInterval(overallTimerInterval);
+            }
+
+            overallTimerInterval = setInterval(() => {
+                overallSeconds++;
+
+                const hours = String(Math.floor(overallSeconds / 3600)).padStart(2, '0');
+                const minutes = String(Math.floor((overallSeconds % 3600) / 60)).padStart(2, '0');
+                const seconds = String(overallSeconds % 60).padStart(2, '0');
+
+                document.getElementById('overall-timer').innerText =
+                    `${hours}:${minutes}:${seconds}`;
+            }, 1000);
+        }
 
         function updateQuestionTimerDisplay() {
             const minutes = String(Math.floor(timePerQuestion[currentIdx] / 60)).padStart(2, '0');
@@ -760,70 +858,73 @@ if (q.hasFigure) {
 
         // Render On-Screen Report
         function renderReportPage() {
-    document.getElementById('report-date').innerText = new Date().toLocaleString();
-    
-    let correctCount = 0;
-    let wrongCount = 0;
-    let unsureCount = 0;
+            document.getElementById('report-date').innerText = new Date().toLocaleString();
+            document.getElementById('report-student-name').textContent = studentName;
+            document.getElementById('report-student-class').textContent = studentClass;
+            document.getElementById('report-student-class-number').textContent = studentClassNumber;
+            
+            let correctCount = 0;
+            let wrongCount = 0;
+            let unsureCount = 0;
 
-    const tBody = document.getElementById('report-table-body');
-    tBody.innerHTML = '';
+            const tBody = document.getElementById('report-table-body');
+            tBody.innerHTML = '';
 
-    questionsData.forEach((q, idx) => {
-        const uAns = userAnswers[idx];
-        const isCorrect = uAns === q.answer;
-        const timeStr = `${Math.floor(timePerQuestion[idx] / 60)}m ${timePerQuestion[idx] % 60}s`;
+            questionsData.forEach((q, idx) => {
+                const uAns = userAnswers[idx];
+                const isCorrect = uAns === q.answer;
+                const timeStr = `${Math.floor(timePerQuestion[idx] / 60)}m ${timePerQuestion[idx] % 60}s`;
 
-        let stateLabel = "";
-        let rowBg = "";
-        const prefixes = ["A", "B", "C", "D"];
+                let stateLabel = "";
+                let rowBg = "";
+                const prefixes = ["A", "B", "C", "D"];
 
-        if (uAns === 4) {
-            unsureCount++;
-            stateLabel = `<span class="px-2 py-1 bg-amber-100 text-amber-800 rounded font-bold text-xs uppercase">Unsure</span>`;
-            rowBg = "bg-amber-50/20";
-        } else if (isCorrect) {
-            correctCount++;
-            stateLabel = `<span class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-xs uppercase">Correct</span>`;
-            rowBg = "bg-emerald-50/10";
-        } else {
-            wrongCount++;
-            stateLabel = `<span class="px-2 py-1 bg-rose-100 text-rose-800 rounded font-bold text-xs uppercase">Wrong</span>`;
-            rowBg = "bg-rose-50/10";
+                if (uAns === 4) {
+                    unsureCount++;
+                    stateLabel = `<span class="px-2 py-1 bg-amber-100 text-amber-800 rounded font-bold text-xs uppercase">Unsure</span>`;
+                    rowBg = "bg-amber-50/20";
+                } else if (isCorrect) {
+                    correctCount++;
+                    stateLabel = `<span class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-xs uppercase">Correct</span>`;
+                    rowBg = "bg-emerald-50/10";
+                } else {
+                    wrongCount++;
+                    stateLabel = `<span class="px-2 py-1 bg-rose-100 text-rose-800 rounded font-bold text-xs uppercase">Wrong</span>`;
+                    rowBg = "bg-rose-50/10";
+                }
+
+                const uLabel = uAns === 4 ? "Unsure" : (uAns !== null ? prefixes[uAns] : "Skipped");
+                const cLabel = prefixes[q.answer];
+                const classificationText = q.classification || q.category || "-";
+
+                const row = document.createElement('tr');
+                row.className = `border-b border-slate-100 ${rowBg}`;
+                row.innerHTML = `
+                    <td class="p-3 font-bold text-slate-800">Q${q.id}</td>
+                    <td class="p-3 font-medium text-slate-600">${classificationText}</td>
+                    <td class="p-3 font-semibold text-slate-600">${uLabel}</td>
+                    <td class="p-3 font-bold text-emerald-600">${cLabel}</td>
+                    <td class="p-3">${stateLabel}</td>
+                    <td class="p-3 text-right text-xs font-mono text-slate-500">${timeStr}</td>
+                `;
+                tBody.appendChild(row);
+            });
+
+            const correctPct = Math.round((correctCount / 45) * 100);
+            const wrongPct = Math.round((wrongCount / 45) * 100);
+            const unsurePct = Math.round((unsureCount / 45) * 100);
+
+            document.getElementById('rep-correct').innerText = `${correctCount} (${correctPct}%)`;
+            document.getElementById('rep-wrong').innerText = `${wrongCount} (${wrongPct}%)`;
+            document.getElementById('rep-unsure').innerText = `${unsureCount} (${unsurePct}%)`;
+
+            const hours = String(Math.floor(overallSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((overallSeconds % 3600) / 60)).padStart(2, '0');
+            const seconds = String(overallSeconds % 60).padStart(2, '0');
+            document.getElementById('rep-total-time').innerText = `${hours}:${minutes}:${seconds}`;
+
+            document.getElementById('report-modal').classList.remove('hidden');
         }
-
-        const uLabel = uAns === 4 ? "Unsure" : (uAns !== null ? prefixes[uAns] : "Skipped");
-        const cLabel = prefixes[q.answer];
-        const classificationText = q.classification || q.category || "-";
-
-        const row = document.createElement('tr');
-        row.className = `border-b border-slate-100 ${rowBg}`;
-        row.innerHTML = `
-            <td class="p-3 font-bold text-slate-800">Q${q.id}</td>
-            <td class="p-3 font-medium text-slate-600">${classificationText}</td>
-            <td class="p-3 font-semibold text-slate-600">${uLabel}</td>
-            <td class="p-3 font-bold text-emerald-600">${cLabel}</td>
-            <td class="p-3">${stateLabel}</td>
-            <td class="p-3 text-right text-xs font-mono text-slate-500">${timeStr}</td>
-        `;
-        tBody.appendChild(row);
-    });
-
-    const correctPct = Math.round((correctCount / 45) * 100);
-    const wrongPct = Math.round((wrongCount / 45) * 100);
-    const unsurePct = Math.round((unsureCount / 45) * 100);
-
-    document.getElementById('rep-correct').innerText = `${correctCount} (${correctPct}%)`;
-    document.getElementById('rep-wrong').innerText = `${wrongCount} (${wrongPct}%)`;
-    document.getElementById('rep-unsure').innerText = `${unsureCount} (${unsurePct}%)`;
-
-    const hours = String(Math.floor(overallSeconds / 3600)).padStart(2, '0');
-    const minutes = String(Math.floor((overallSeconds % 3600) / 60)).padStart(2, '0');
-    const seconds = String(overallSeconds % 60).padStart(2, '0');
-    document.getElementById('rep-total-time').innerText = `${hours}:${minutes}:${seconds}`;
-
-    document.getElementById('report-modal').classList.remove('hidden');
-}
 
 // Close report dashboard
 function closeReport() {
@@ -956,6 +1057,76 @@ async function downloadPDF() {
     const totalTime = `${hours}:${minutes}:${seconds}`;
     const dateText = new Date().toLocaleString();
     const prefixes = ['A', 'B', 'C', 'D'];
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, character => {
+            const characters = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+
+            return characters[character];
+        });
+    }
+
+    function getStudentDetailsHtml() {
+        return `
+            <div style="
+                display:flex;
+                gap:10px;
+                margin-bottom:14px;
+                font-size:10px;
+                color:#334155;
+            ">
+                <div style="
+                    flex:1;
+                    padding:8px 9px;
+                    background:#f8fafc;
+                    border:1px solid #e2e8f0;
+                    border-radius:5px;
+                ">
+                    <div style="font-size:8px; color:#64748b; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                        Name
+                    </div>
+                    <div style="font-weight:700;">
+                        ${escapeHtml(studentName)}
+                    </div>
+                </div>
+
+                <div style="
+                    flex:1;
+                    padding:8px 9px;
+                    background:#f8fafc;
+                    border:1px solid #e2e8f0;
+                    border-radius:5px;
+                ">
+                    <div style="font-size:8px; color:#64748b; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                        Class
+                    </div>
+                    <div style="font-weight:700;">
+                        ${escapeHtml(studentClass)}
+                    </div>
+                </div>
+
+                <div style="
+                    flex:1;
+                    padding:8px 9px;
+                    background:#f8fafc;
+                    border:1px solid #e2e8f0;
+                    border-radius:5px;
+                ">
+                    <div style="font-size:8px; color:#64748b; font-weight:700; text-transform:uppercase; margin-bottom:3px;">
+                        Class number
+                    </div>
+                    <div style="font-weight:700;">
+                        ${escapeHtml(studentClassNumber)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 
     function getStatus(answer, correctAnswer) {
         if (answer === 4) {
@@ -1156,6 +1327,7 @@ async function downloadPDF() {
     element.innerHTML = `
         ${getPdfPage(`
             ${getPageHeader(1)}
+            ${getStudentDetailsHtml()}
             ${getSummaryCards()}
             ${getQuestionTable(0, 11)}
         `)}
@@ -1293,8 +1465,61 @@ const pdf = new jsPDF({
     }
 }
 
-// Fire initial setup to load Question 1 dynamically on browser launch
-selectQuestion(0);
+function updateEnterButton() {
+    const nameInput = document.getElementById('student-name');
+    const classInput = document.getElementById('student-class');
+    const classNumberInput = document.getElementById('student-class-number');
+    const enterButton = document.getElementById('enter-paper-button');
+
+    const allFieldsCompleted =
+        nameInput.value.trim() !== '' &&
+        classInput.value.trim() !== '' &&
+        classNumberInput.value.trim() !== '';
+
+    enterButton.disabled = !allFieldsCompleted;
+
+    if (allFieldsCompleted) {
+        enterButton.className =
+            'w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-md';
+    } else {
+        enterButton.className =
+            'w-full py-3.5 rounded-xl bg-slate-300 text-white font-bold transition cursor-not-allowed';
+    }
+}
+
+function startPaper(event) {
+    event.preventDefault();
+
+    const nameInput = document.getElementById('student-name');
+    const classInput = document.getElementById('student-class');
+    const classNumberInput = document.getElementById('student-class-number');
+
+    studentName = nameInput.value.trim();
+    studentClass = classInput.value.trim();
+    studentClassNumber = classNumberInput.value.trim();
+
+    if (!studentName || !studentClass || !studentClassNumber) {
+        alert('Please complete Name, Class, and Class Number before entering.');
+        return;
+    }
+
+    // Hide the information page and reveal the main paper.
+    document.getElementById('student-info-screen').classList.add('hidden');
+
+    // Start timers and load Question 1 only after Enter is pressed.
+    startOverallTimer();
+    selectQuestion(0);
+}
+
+document.getElementById('student-name').addEventListener('input', updateEnterButton);
+document.getElementById('student-class').addEventListener('input', updateEnterButton);
+document.getElementById('student-class-number').addEventListener('input', updateEnterButton);
+
+document
+    .getElementById('student-info-form')
+    .addEventListener('submit', startPaper);
+
+updateEnterButton();
     </script>
 </body>
 </html>
